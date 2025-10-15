@@ -1,7 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
-
 import logo from '@/assets/logo.svg'
 
 export interface HeaderMenuItem {
@@ -17,15 +15,19 @@ export interface HeaderUserProfile {
 
 const props = defineProps<{
   menuItems: HeaderMenuItem[]
-  selectedKeys?: string[] | null
+  modelValue?: string[] // v-model 语法糖
   user?: HeaderUserProfile | null
 }>()
 
-defineEmits<{
+const emit = defineEmits<{
+  (event: 'update:modelValue', val: string[]): void
   (event: 'login'): void
 }>()
 
-const normalizedSelectedKeys = computed<string[]>(() => props.selectedKeys ?? [])
+// 当点击菜单时，自动更新 v-model
+const handleSelect = (info: { key: string }) => {
+  emit('update:modelValue', [info.key])
+}
 </script>
 
 <template>
@@ -39,9 +41,10 @@ const normalizedSelectedKeys = computed<string[]>(() => props.selectedKeys ?? []
       class="global-header__menu"
       mode="horizontal"
       theme="light"
-      :selectedKeys="normalizedSelectedKeys"
+      :selectedKeys="modelValue"
+      @select="handleSelect"
     >
-      <a-menu-item v-for="item in menuItems" :key="item.key">
+      <a-menu-item v-for="item in menuItems" :key="item.path">
         <RouterLink :to="item.path">{{ item.label }}</RouterLink>
       </a-menu-item>
     </a-menu>
@@ -49,11 +52,9 @@ const normalizedSelectedKeys = computed<string[]>(() => props.selectedKeys ?? []
     <div class="global-header__actions">
       <template v-if="user">
         <a-avatar :src="user.avatar" size="large">
-          <span v-if="!user.avatar" class="global-header__avatar-fallback">
-            {{ user.name.charAt(0).toUpperCase() }}
-          </span>
+          <span v-if="!user.avatar">{{ user.name.charAt(0).toUpperCase() }}</span>
         </a-avatar>
-        <span class="global-header__username">{{ user.name }}</span>
+        <span>{{ user.name }}</span>
       </template>
       <a-button v-else type="primary" @click="$emit('login')">登录/注册</a-button>
     </div>
