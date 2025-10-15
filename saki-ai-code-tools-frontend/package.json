@@ -10,7 +10,8 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --build",
     "lint": "eslint . --fix",
-    "format": "prettier --write src/"
+    "format": "prettier --write src/",
+    "openapi2ts": "openapi2ts"
   },
   "dependencies": {
     "ant-design-vue": "^4.2.6",
