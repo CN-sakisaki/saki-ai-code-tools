@@ -1,35 +1,38 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { RouterView, useRoute } from 'vue-router'
+import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 
 import GlobalFooter from '@/components/GlobalFooter.vue'
-import GlobalHeader, {
-  type HeaderMenuItem,
-  type HeaderUserProfile,
-} from '@/components/GlobalHeader.vue'
+import GlobalHeader, { type HeaderUserProfile } from '@/components/GlobalHeader.vue'
+import router from '@/router'
 
-const menuItems: HeaderMenuItem[] = [
-  { key: 'home', label: '首页', path: '/' },
-  { key: 'about', label: '关于我们', path: '/about' },
-]
+// 自动生成菜单项
+const menuItems = router.options.routes
+  .filter((r) => r.meta?.showInMenu)
+  .map((r) => ({
+    key: r.name as string,
+    label: r.meta?.label as string,
+    path: r.path,
+  }))
 
 const route = useRoute()
 
-const selectedKeys = computed<string[]>(() => {
-  const active = menuItems.find((item) => {
-    if (item.path === '/') {
-      return route.path === item.path
-    }
+// 当前选中菜单 key
+const selectedKeys = ref<string[]>([])
 
-    return route.path === item.path || route.path.startsWith(`${item.path}/`)
-  })
-  return active ? [active.key] : []
+// 刷新时同步一次当前路由
+onMounted(() => {
+  selectedKeys.value = [route.path]
+})
+
+// 每次路由变化自动更新选中菜单
+router.afterEach((to) => {
+  selectedKeys.value = [to.path]
 })
 
 const currentUser = ref<HeaderUserProfile | null>(null)
 
 const handleAuth = () => {
-  // TODO: integrate with real authentication flow
   console.info('Trigger login/register flow')
 }
 </script>
@@ -38,7 +41,7 @@ const handleAuth = () => {
   <a-layout class="basic-layout">
     <GlobalHeader
       :menu-items="menuItems"
-      :selected-keys="selectedKeys"
+      v-model:modelValue="selectedKeys"
       :user="currentUser"
       @login="handleAuth"
     />
