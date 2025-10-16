@@ -1,8 +1,17 @@
 package com.saki.sakiaicodetoolsbackend.controller;
 
 import com.mybatisflex.core.paginate.Page;
+import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
+import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
+import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.entity.User;
+import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
+import com.saki.sakiaicodetoolsbackend.service.UserService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -10,12 +19,8 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
-import com.saki.sakiaicodetoolsbackend.model.entity.User;
-import com.saki.sakiaicodetoolsbackend.service.UserService;
 import org.springframework.web.bind.annotation.RestController;
-import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.Parameter;
+
 import java.util.List;
 
 /**
@@ -31,6 +36,25 @@ public class UserController {
 
     @Resource
     private UserService userService;
+
+    @PostMapping("/login")
+    @Operation(description = "用户登录")
+    public BaseResponse<UserVO> login(@RequestBody LoginRequest request) {
+        return ResultUtils.success(userService.login(request));
+    }
+
+    @PostMapping("/login/send-email-code")
+    @Operation(description = "发送邮箱登录验证码")
+    public BaseResponse<Boolean> sendEmailLoginCode(@RequestBody LoginRequest request) {
+        userService.sendEmailLoginCode(request);
+        return ResultUtils.success(Boolean.TRUE);
+    }
+
+    @PostMapping("/token/refresh")
+    @Operation(description = "刷新 AccessToken")
+    public BaseResponse<String> refreshAccessToken(@RequestBody TokenRefreshRequest request) {
+        return ResultUtils.success(userService.refreshAccessToken(request));
+    }
 
     /**
      * 保存用户表。
