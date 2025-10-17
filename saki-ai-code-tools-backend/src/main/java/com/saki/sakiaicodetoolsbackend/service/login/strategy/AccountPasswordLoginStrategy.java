@@ -7,6 +7,9 @@ import org.springframework.stereotype.Component;
 
 /**
  * 账号密码登录策略。
+ * @author saki酱
+ * @version 1.0
+ * @since 2025-10-17 12:02
  */
 @Component
 public class AccountPasswordLoginStrategy extends AbstractPasswordLoginStrategy {
