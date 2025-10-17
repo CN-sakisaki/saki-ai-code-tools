@@ -6,6 +6,22 @@ spring:
     url: jdbc:mysql://localhost:3306/saki_ai_code_tools
     username: root
     password: SaKi20251013
+  data:
+    redis:
+      host: 
+      port: 6379
+      password: 
+  mail:
+    host: 
+    username: 
+    password: 
+    port: 465
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
 server:
   port: 8123
   servlet:
@@ -20,4 +36,9 @@ knife4j:
   enable: true
   setting:
     language: zh_cn
+
+jwt:
+  secret: VBW4ris/Gm2W+PqxqPe+zJ0UuqolPIxCFCh63g8TsII=
+  access-expire-minutes: 30
+  refresh-expire-days: 7
 
