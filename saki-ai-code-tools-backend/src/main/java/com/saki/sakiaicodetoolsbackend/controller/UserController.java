@@ -4,6 +4,7 @@ import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
 import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
@@ -36,6 +37,12 @@ public class UserController {
 
     @Resource
     private UserService userService;
+
+    @PostMapping("/register")
+    @Operation(description = "用户注册")
+    public BaseResponse<Long> register(@RequestBody RegisterRequest request) {
+        return ResultUtils.success(userService.register(request));
+    }
 
     @PostMapping("/login")
     @Operation(description = "用户登录")

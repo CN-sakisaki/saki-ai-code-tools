@@ -1,16 +1,20 @@
 package com.saki.sakiaicodetoolsbackend.service.impl;
 
+import cn.hutool.core.util.HexUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.crypto.digest.DigestUtil;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
+import com.saki.sakiaicodetoolsbackend.constant.UserConstants;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
@@ -57,9 +61,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /** 邮件主题 */
     private static final String EMAIL_SUBJECT = "登录验证码";
 
-    /** 默认用户角色 */
-    private static final String DEFAULT_ROLE = "user";
-
     /** 邮件模板路径 */
     private static final String EMAIL_TEMPLATE_PATH = "templates/login-code.html";
 
@@ -104,6 +105,57 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 构建登录结果
         return buildLoginResult(user, request.getHttpServletRequest());
+    }
+
+    /**
+     * 用户注册。
+     *
+     * @param request 注册请求对象
+     * @return 新用户的主键 ID
+     */
+    @Override
+    public Long register(RegisterRequest request) {
+        validateRequest(request, "注册请求不能为空");
+
+        String userAccount = StrUtil.trim(request.getUserAccount());
+        String password = request.getUserPassword();
+        String confirmPassword = request.getConfirmPassword();
+
+        // 基本参数校验
+        ThrowUtils.throwIf(StrUtil.isBlank(userAccount) || StrUtil.isBlank(password) || StrUtil.isBlank(confirmPassword),
+                ErrorCode.PARAMS_MISSING, "账号或密码不能为空");
+        ThrowUtils.throwIf(!StrUtil.equals(password, confirmPassword), ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
+
+        // 校验账号是否已存在
+        boolean accountExists = getOne(new QueryWrapper().where(User::getUserAccount).eq(userAccount).limit(1)) != null;
+        ThrowUtils.throwIf(accountExists, ErrorCode.PARAMS_ERROR, "账号已存在");
+
+        String salt = generateUserSalt();
+        String encryptedPassword = DigestUtil.sha256Hex(password + salt);
+
+        String inviteCode = Optional.ofNullable(StrUtil.trimToNull(request.getInviteCode()))
+                .orElseGet(this::generateUniqueInviteCode);
+
+        LocalDateTime now = LocalDateTime.now();
+
+        User newUser = User.builder()
+                .userAccount(userAccount)
+                .userPassword(encryptedPassword)
+                .userName(buildDefaultUserName(userAccount))
+                .userAvatar(UserConstants.DEFAULT_AVATAR_PATH)
+                .userProfile(UserConstants.DEFAULT_PROFILE)
+                .userRole(UserConstants.DEFAULT_USER_ROLE)
+                .userStatus(UserConstants.DEFAULT_USER_STATUS)
+                .isVip(UserConstants.DEFAULT_VIP_STATUS)
+                .inviteCode(inviteCode)
+                .userSalt(salt)
+                .createTime(now)
+                .updateTime(now)
+                .build();
+
+        boolean saved = save(newUser);
+        ThrowUtils.throwIf(!saved, ErrorCode.SYSTEM_ERROR, "用户注册失败");
+        return newUser.getId();
     }
 
     // ===================== 邮箱验证码相关方法 =====================
@@ -183,7 +235,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .orElseGet(() -> Optional.ofNullable(getById(userId))
                         .map(User::getUserRole)
                         .filter(StrUtil::isNotBlank)
-                        .orElse(DEFAULT_ROLE));
+                        .orElse(UserConstants.DEFAULT_USER_ROLE));
 
         // 生成新地访问令牌
         return generateAndStoreTokens(userId, userRole).getAccessToken();
@@ -205,7 +257,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ThrowUtils.throwIf(user == null, ErrorCode.SYSTEM_ERROR, "用户信息为空");
 
         // 使用用户角色或默认角色
-        String role = StrUtil.blankToDefault(user.getUserRole(), DEFAULT_ROLE);
+        String role = StrUtil.blankToDefault(user.getUserRole(), UserConstants.DEFAULT_USER_ROLE);
 
         // 生成令牌
         UserVO vo = generateAndStoreTokens(user.getId(), role);
@@ -265,6 +317,42 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 更新内存中的用户对象
         user.setLastLoginTime(now);
+    }
+
+    /**
+     * 生成唯一的邀请码。
+     *
+     * @return 唯一的邀请码
+     */
+    private String generateUniqueInviteCode() {
+        for (int i = 0; i < UserConstants.INVITE_CODE_MAX_RETRY; i++) {
+            String code = RandomUtil.randomString(UserConstants.INVITE_CODE_CHAR_POOL, UserConstants.INVITE_CODE_LENGTH);
+            boolean exists = getOne(new QueryWrapper().where(User::getInviteCode).eq(code).limit(1)) != null;
+            if (!exists) {
+                return code;
+            }
+        }
+        throw new BusinessException(ErrorCode.SYSTEM_ERROR, "生成邀请码失败，请稍后重试");
+    }
+
+    /**
+     * 生成用户盐值。
+     *
+     * @return 十六进制表示的盐值
+     */
+    private String generateUserSalt() {
+        byte[] saltBytes = RandomUtil.randomBytes(UserConstants.USER_SALT_BYTE_LENGTH);
+        return HexUtil.encodeHexStr(saltBytes);
+    }
+
+    /**
+     * 构建默认用户名。
+     *
+     * @param userAccount 用户账号
+     * @return 默认用户名
+     */
+    private String buildDefaultUserName(String userAccount) {
+        return UserConstants.DEFAULT_USERNAME_PREFIX + userAccount;
     }
 
     /**

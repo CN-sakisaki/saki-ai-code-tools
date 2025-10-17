@@ -2,6 +2,7 @@ package com.saki.sakiaicodetoolsbackend.service;
 
 import com.mybatisflex.core.service.IService;
 import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
@@ -35,4 +36,12 @@ public interface UserService extends IService<User> {
      * @return 新的 AccessToken
      */
     String refreshAccessToken(TokenRefreshRequest request);
+
+    /**
+     * 用户注册。
+     *
+     * @param request 注册请求
+     * @return 新用户的主键 ID
+     */
+    Long register(RegisterRequest request);
 }
