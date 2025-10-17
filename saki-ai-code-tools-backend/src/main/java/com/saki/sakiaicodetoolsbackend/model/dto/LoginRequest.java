@@ -1,20 +1,24 @@
 package com.saki.sakiaicodetoolsbackend.model.dto;
 
 import io.swagger.v3.oas.annotations.media.Schema;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.Data;
 
+import java.io.Serial;
 import java.io.Serializable;
 
 /**
  * 登录请求参数。
- *
- * @author sak
+ * @author saki酱
+ * @version 1.0
+ * @since 2025-10-17 12:07
  */
 @Data
 @Schema(description = "登录请求参数")
 public class LoginRequest implements Serializable {
 
-    private static final long serialVersionUID = 1L;
+    @Serial
+    private static final long serialVersionUID = 7827430631257923075L;
 
     /**
      * 登录类型：账号密码、手机号密码、邮箱验证码等。
@@ -51,5 +55,10 @@ public class LoginRequest implements Serializable {
      */
     @Schema(description = "登录验证码")
     private String loginCode;
+
+    /**
+     * 请求头信息
+     */
+    private HttpServletRequest httpServletRequest;
 }
 
