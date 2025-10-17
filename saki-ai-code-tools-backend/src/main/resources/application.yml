@@ -38,7 +38,7 @@ knife4j:
     language: zh_cn
 
 jwt:
-  secret: 
+  secret: VBW4ris/Gm2W+PqxqPe+zJ0UuqolPIxCFCh63g8TsII=
   access-expire-minutes: 30
   refresh-expire-days: 7
 

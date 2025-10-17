@@ -3,6 +3,7 @@ package com.saki.sakiaicodetoolsbackend.service.impl;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
@@ -15,17 +16,17 @@ import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.UserService;
-import com.saki.sakiaicodetoolsbackend.service.login.LoginStrategy;
 import com.saki.sakiaicodetoolsbackend.service.login.LoginStrategyFactory;
+import com.saki.sakiaicodetoolsbackend.utils.IpUtils;
 import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.mail.MailException;
 import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
@@ -39,183 +40,326 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * 用户表 服务层实现。
+ * 用户服务实现类，负责用户登录、令牌管理、邮件验证码发送等核心业务逻辑。
+ * 继承MyBatis-Flex的ServiceImpl，提供基础的CRUD操作，并实现自定义的用户服务接口。
+ *
+ * @author saki酱
+ * @version 1.0
+ * @since 2025-10-17 11:53
  */
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
-    private static final String USER_TABLE = "saki_ai_code_tools.user";
-    private static final String EMAIL_TEMPLATE_PATH = "templates/login-code.html";
+    // ===================== 常量定义 =====================
+
+    /** 邮件主题 */
     private static final String EMAIL_SUBJECT = "登录验证码";
 
+    /** 默认用户角色 */
+    private static final String DEFAULT_ROLE = "user";
+
+    /** 邮件模板路径 */
+    private static final String EMAIL_TEMPLATE_PATH = "templates/login-code.html";
+
+    // ===================== 依赖注入 =====================
+
+    /** 登录策略工厂，用于根据不同登录类型选择认证策略 */
     private final LoginStrategyFactory loginStrategyFactory;
+
+    /** JWT工具类，用于令牌的生成和解析 */
     private final JwtUtils jwtUtils;
-    private final StringRedisTemplate stringRedisTemplate;
+
+    /** Redis模板，用于存储刷新令牌和验证码 */
+    private final StringRedisTemplate redisTemplate;
+
+    /** 邮件发送器，用于发送验证码邮件 */
     private final JavaMailSender mailSender;
 
+    /** 邮件模板缓存，使用原子引用保证线程安全 */
     private final AtomicReference<String> emailTemplateCache = new AtomicReference<>();
 
+    // ===================== 登录相关方法 =====================
+
+    /**
+     * 用户登录方法，支持多种登录方式。
+     * 根据登录类型选择相应的认证策略，认证成功后生成令牌并更新登录信息。
+     *
+     * @param request 登录请求对象，包含登录类型、凭证等信息
+     * @return 用户视图对象，包含用户基本信息和访问令牌
+     * @throws BusinessException 当请求参数为空、登录类型不支持或认证失败时抛出
+     */
     @Override
     public UserVO login(LoginRequest request) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_MISSING, "请求参数不能为空");
-        ThrowUtils.throwIf(StrUtil.isBlank(request.getLoginType()), ErrorCode.PARAMS_MISSING, "登录类型不能为空");
-        Optional<LoginTypeEnum> loginTypeOptional = LoginTypeEnum.fromValue(request.getLoginType());
-        LoginTypeEnum loginType = loginTypeOptional.orElseThrow(() -> new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的登录方式"));
-        LoginStrategy strategy = loginStrategyFactory.getStrategy(loginType);
-        User user = strategy.authenticate(request);
-        return buildLoginResult(user);
+        // 验证请求参数
+        validateRequest(request, "请求参数不能为空");
+
+        // 解析登录类型，如果不存在则抛出异常
+        LoginTypeEnum loginType = LoginTypeEnum.fromValue(request.getLoginType())
+                .orElseThrow(() -> new BusinessException(ErrorCode.PARAMS_ERROR, "不支持的登录方式"));
+
+        // 使用策略模式进行用户认证
+        User user = loginStrategyFactory.getStrategy(loginType).authenticate(request);
+
+        // 构建登录结果
+        return buildLoginResult(user, request.getHttpServletRequest());
     }
 
+    // ===================== 邮箱验证码相关方法 =====================
+
+    /**
+     * 发送邮箱登录验证码。
+     * 生成6位随机验证码，存储到Redis并发送到用户邮箱。
+     *
+     * @param request 登录请求对象，必须包含用户邮箱
+     * @throws BusinessException 当邮箱为空、用户不存在或邮件发送失败时抛出
+     */
     @Override
     public void sendEmailLoginCode(LoginRequest request) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_MISSING, "请求参数不能为空");
+        // 验证请求参数
+        validateRequest(request, "请求参数不能为空");
         String email = request.getUserEmail();
+
+        // 检查邮箱是否为空
         ThrowUtils.throwIf(StrUtil.isBlank(email), ErrorCode.PARAMS_MISSING, "邮箱不能为空");
-        User user = selectUserByColumn("user_email", email);
+
+        // 查询用户是否存在
+        User user = getOne(new QueryWrapper().where(User::getUserEmail).eq(email).limit(1));
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "邮箱未注册");
+
+        // 生成6位随机验证码
         String code = RandomUtil.randomNumbers(6);
         String redisKey = AuthConstants.buildEmailCodeKey(email);
-        stringRedisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(AuthConstants.EMAIL_CODE_EXPIRE_MINUTES));
+
+        // 将验证码存储到Redis，设置5分钟过期时间
+        redisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(AuthConstants.EMAIL_CODE_EXPIRE_MINUTES));
+
         try {
+            // 发送验证码邮件
             sendEmailCode(email, code);
-        } catch (MessagingException | IOException | MailException ex) {
-            stringRedisTemplate.delete(redisKey);
-            log.error("发送登录验证码失败", ex);
+        } catch (Exception ex) {
+            // 如果邮件发送失败，删除Redis中的验证码
+            redisTemplate.delete(redisKey);
+            log.error("发送登录验证码失败: {}", ex.getMessage(), ex);
             throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED, "发送验证码失败，请稍后重试");
         }
     }
 
+    // ===================== Token刷新相关方法 =====================
+
+    /**
+     * 刷新访问令牌。
+     * 使用刷新令牌验证用户身份，生成新地访问令牌。
+     *
+     * @param request 令牌刷新请求对象，必须包含访问令牌
+     * @return 新地访问令牌
+     * @throws BusinessException 当请求参数为空、访问令牌无效或刷新令牌不存在时抛出
+     */
     @Override
     public String refreshAccessToken(TokenRefreshRequest request) {
-        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_MISSING, "请求参数不能为空");
+        // 验证请求参数
+        validateRequest(request, "请求参数不能为空");
         String accessToken = request.getAccessToken();
         ThrowUtils.throwIf(StrUtil.isBlank(accessToken), ErrorCode.PARAMS_MISSING, "AccessToken 不能为空");
+
+        // 解析访问令牌（允许过期）
         Claims claims = jwtUtils.parseTokenAllowExpired(accessToken);
-        String subject = claims.getSubject();
-        ThrowUtils.throwIf(StrUtil.isBlank(subject), ErrorCode.TOKEN_INVALID, "无效的 AccessToken");
-        Long userId;
-        try {
-            userId = Long.valueOf(subject);
-        } catch (NumberFormatException ex) {
-            throw new BusinessException(ErrorCode.TOKEN_INVALID, "非法的用户标识");
-        }
+
+        // 从subject中解析用户ID
+        Long userId = parseUserId(claims.getSubject());
         String refreshTokenKey = AuthConstants.buildRefreshTokenKey(userId);
-        String refreshToken = stringRedisTemplate.opsForValue().get(refreshTokenKey);
-        ThrowUtils.throwIf(StrUtil.isBlank(refreshToken), ErrorCode.LOGIN_EXPIRED, "登录状态已过期，请重新登录");
-        if (!jwtUtils.isTokenValid(refreshToken)) {
-            stringRedisTemplate.delete(refreshTokenKey);
-            throw new BusinessException(ErrorCode.LOGIN_EXPIRED, "登录状态已过期，请重新登录");
-        }
-        String userRole = claims.get("userRole", String.class);
-        if (StrUtil.isBlank(userRole)) {
-            User user = getById(userId);
-            ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
-            userRole = StrUtil.blankToDefault(user.getUserRole(), "user");
-        }
-        String newAccessToken = jwtUtils.generateAccessToken(userId, userRole);
-        String newRefreshToken = jwtUtils.generateRefreshToken(userId, userRole);
-        storeRefreshToken(userId, newRefreshToken);
-        return newAccessToken;
+
+        // 从Redis获取刷新令牌
+        String refreshToken = redisTemplate.opsForValue().get(refreshTokenKey);
+
+        // 验证刷新令牌是否存在且有效
+        ThrowUtils.throwIf(StrUtil.isBlank(refreshToken) || !jwtUtils.isTokenValid(refreshToken),
+                ErrorCode.LOGIN_EXPIRED, "登录状态已过期，请重新登录");
+
+        // 获取用户角色：优先从令牌中获取，其次从数据库获取，最后使用默认角色
+        String userRole = Optional.ofNullable(claims.get("userRole", String.class))
+                .filter(StrUtil::isNotBlank)
+                .orElseGet(() -> Optional.ofNullable(getById(userId))
+                        .map(User::getUserRole)
+                        .filter(StrUtil::isNotBlank)
+                        .orElse(DEFAULT_ROLE));
+
+        // 生成新地访问令牌
+        return generateAndStoreTokens(userId, userRole).getAccessToken();
     }
 
-    private UserVO buildLoginResult(User user) {
+    // ===================== 辅助方法 =====================
+
+    /**
+     * 构建登录结果。
+     * 生成令牌、更新登录信息并组装返回数据。
+     *
+     * @param user 用户实体对象
+     * @param httpServletRequest HTTP请求对象，用于获取客户端IP
+     * @return 用户视图对象
+     * @throws BusinessException 当用户信息为空时抛出
+     */
+    private UserVO buildLoginResult(User user, HttpServletRequest httpServletRequest) {
+        // 检查用户信息
         ThrowUtils.throwIf(user == null, ErrorCode.SYSTEM_ERROR, "用户信息为空");
-        String userRole = StrUtil.blankToDefault(user.getUserRole(), "user");
-        String accessToken = jwtUtils.generateAccessToken(user.getId(), userRole);
-        String refreshToken = jwtUtils.generateRefreshToken(user.getId(), userRole);
-        storeRefreshToken(user.getId(), refreshToken);
-        updateLastLoginInfo(user);
-        return convertToUserVO(user, accessToken);
+
+        // 使用用户角色或默认角色
+        String role = StrUtil.blankToDefault(user.getUserRole(), DEFAULT_ROLE);
+
+        // 生成令牌
+        UserVO vo = generateAndStoreTokens(user.getId(), role);
+
+        // 更新最后登录信息
+        updateLastLoginInfo(user, httpServletRequest);
+
+        // 复制用户基本信息
+        vo.copyUserInfoFrom(user);
+        return vo;
     }
 
-    private void storeRefreshToken(Long userId, String refreshToken) {
-        String key = AuthConstants.buildRefreshTokenKey(userId);
-        stringRedisTemplate.opsForValue().set(key, refreshToken, jwtUtils.getRefreshTokenExpireDuration());
-    }
+    /**
+     * 生成并存储令牌。
+     * 生成访问令牌和刷新令牌，将刷新令牌存储到Redis。
+     *
+     * @param userId 用户ID
+     * @param role 用户角色
+     * @return 包含访问令牌的用户视图对象
+     */
+    private UserVO generateAndStoreTokens(Long userId, String role) {
+        // 生成访问令牌和刷新令牌
+        String accessToken = jwtUtils.generateAccessToken(userId, role);
+        String refreshToken = jwtUtils.generateRefreshToken(userId, role);
 
-    private void updateLastLoginInfo(User user) {
-        LocalDateTime now = LocalDateTime.now();
-        User update = new User();
-        update.setId(user.getId());
-        update.setLastLoginTime(now);
-        boolean updated = this.updateById(update);
-        if (!updated) {
-            log.warn("更新用户最后登录时间失败，用户ID={}", user.getId());
-        } else {
-            user.setLastLoginTime(now);
-        }
-    }
+        // 将刷新令牌存储到Redis
+        redisTemplate.opsForValue().set(AuthConstants.buildRefreshTokenKey(userId), refreshToken, jwtUtils.getRefreshTokenExpireDuration());
 
-    private UserVO convertToUserVO(User user, String accessToken) {
+        // 组装返回结果
         UserVO vo = new UserVO();
-        vo.setId(user.getId());
-        vo.setUserAccount(user.getUserAccount());
-        vo.setUserEmail(user.getUserEmail());
-        vo.setUserPhone(user.getUserPhone());
-        vo.setUserAvatar(user.getUserAvatar());
-        vo.setUserProfile(user.getUserProfile());
-        vo.setUserRole(user.getUserRole());
-        vo.setUserStatus(user.getUserStatus());
-        vo.setIsVip(user.getIsVip());
-        vo.setVipStartTime(user.getVipStartTime());
-        vo.setVipEndTime(user.getVipEndTime());
-        vo.setInviteCode(user.getInviteCode());
-        vo.setLastLoginTime(user.getLastLoginTime());
-        vo.setLastLoginIp(user.getLastLoginIp());
-        vo.setEditTime(user.getEditTime());
-        vo.setCreateTime(user.getCreateTime());
         vo.setAccessToken(accessToken);
         return vo;
     }
 
-    private void sendEmailCode(String email, String code) throws MessagingException, IOException {
-        MimeMessage mimeMessage = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, StandardCharsets.UTF_8.name());
-        helper.setTo(email);
-        helper.setSubject(EMAIL_SUBJECT);
-        helper.setText(buildEmailContent(code), true);
-        mailSender.send(mimeMessage);
+    /**
+     * 更新用户最后登录信息。
+     * 包括最后登录时间和登录IP地址。
+     *
+     * @param user 用户实体对象
+     * @param httpServletRequest HTTP请求对象，用于获取客户端IP
+     */
+    private void updateLastLoginInfo(User user, HttpServletRequest httpServletRequest) {
+        LocalDateTime now = LocalDateTime.now();
+        // 获取客户端IP地址
+        String ipAddress = IpUtils.getClientIp(httpServletRequest);
+
+        // 更新数据库中的登录信息
+        boolean success = UpdateChain.of(User.class)
+                .set(User::getLastLoginTime, now)
+                .set(User::getLastLoginIp, ipAddress)
+                .where(User::getId).eq(user.getId())
+                .update();
+
+        if (!success) {
+            log.warn("更新用户最后登录时间失败，用户ID={}", user.getId());
+        }
+
+        // 更新内存中的用户对象
+        user.setLastLoginTime(now);
     }
 
+    /**
+     * 发送验证码邮件。
+     *
+     * @param email 目标邮箱地址
+     * @param code 验证码
+     * @throws MessagingException 当邮件发送失败时抛出
+     * @throws IOException 当邮件模板读取失败时抛出
+     */
+    private void sendEmailCode(String email, String code) throws MessagingException, IOException {
+        MimeMessage message = mailSender.createMimeMessage();
+        MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
+        helper.setTo(email);
+        helper.setSubject(EMAIL_SUBJECT);
+        // 构建邮件内容（HTML格式）
+        helper.setText(buildEmailContent(code), true);
+        mailSender.send(message);
+    }
+
+    /**
+     * 构建邮件内容。
+     * 使用模板文件或默认模板，替换验证码和过期时间占位符。
+     *
+     * @param code 验证码
+     * @return 构建完成的邮件内容
+     * @throws IOException 当模板文件读取失败时抛出
+     */
     private String buildEmailContent(String code) throws IOException {
-        String template = emailTemplateCache.get();
-        if (StrUtil.isBlank(template)) {
-            template = loadTemplate();
-            emailTemplateCache.set(template);
-        }
-        if (StrUtil.isBlank(template)) {
-            template = defaultTemplate();
-        }
+        // 使用缓存或加载邮件模板
+        String template = emailTemplateCache.updateAndGet(current -> {
+            if (StrUtil.isBlank(current)) {
+                try {
+                    return loadTemplate();
+                } catch (IOException e) {
+                    log.error("加载邮件模板失败", e);
+                    return defaultTemplate();
+                }
+            }
+            return current;
+        });
+
+        // 替换模板中的占位符
         return template.replace("${code}", code)
                 .replace("${expireMinutes}", String.valueOf(AuthConstants.EMAIL_CODE_EXPIRE_MINUTES));
     }
 
+    /**
+     * 加载邮件模板文件。
+     *
+     * @return 模板文件内容
+     * @throws IOException 当模板文件不存在或读取失败时抛出
+     */
     private String loadTemplate() throws IOException {
         ClassPathResource resource = new ClassPathResource(EMAIL_TEMPLATE_PATH);
         if (!resource.exists()) {
+            // 如果模板文件不存在，返回默认模板
             return defaultTemplate();
         }
-        try {
-            return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
-        } catch (IOException ex) {
-            log.error("读取邮件模板失败", ex);
-            throw ex;
-        }
+        return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
     }
 
+    /**
+     * 获取默认邮件模板。
+     *
+     * @return 默认模板内容
+     */
     private String defaultTemplate() {
         return "<p>您的验证码为 <strong>${code}</strong>，有效期 ${expireMinutes} 分钟。</p>";
     }
 
-    private User selectUserByColumn(String column, String value) {
-        QueryWrapper queryWrapper = QueryWrapper.create()
-                .select()
-                .from(USER_TABLE)
-                .where(column + " = ?", value)
-                .limit(1);
-        return getBaseMapper().selectOneByQuery(queryWrapper);
+    /**
+     * 验证请求对象是否为空。
+     *
+     * @param request 请求对象
+     * @param message 错误消息
+     * @throws BusinessException 当请求对象为空时抛出
+     */
+    private void validateRequest(Object request, String message) {
+        ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_MISSING, message);
+    }
+
+    /**
+     * 解析用户ID。
+     * 将JWT主题字符串转换为Long类型的用户ID。
+     *
+     * @param subject JWT主题（用户ID字符串）
+     * @return 用户ID
+     * @throws BusinessException 当用户ID格式不正确时抛出
+     */
+    private Long parseUserId(String subject) {
+        try {
+            return Long.valueOf(subject);
+        } catch (NumberFormatException ex) {
+            throw new BusinessException(ErrorCode.TOKEN_INVALID, "非法的用户标识");
+        }
     }
 }
-

@@ -53,6 +53,12 @@ public class User implements Serializable {
     private String userPassword;
 
     /**
+     * 用户名
+     */
+    @Schema(description = "用户名")
+    private String userName;
+
+    /**
      * 用户邮箱
      */
     @Schema(description = "用户邮箱")
