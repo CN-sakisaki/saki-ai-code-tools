@@ -12,6 +12,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * 统一管理用户是否为会员的状态值，避免散落的常量定义。
  * </p>
+ * @author saki酱
+ * @version 1.0
+ * @since 2025-10-18
  */
 @Getter
 public enum VipStatusEnum {

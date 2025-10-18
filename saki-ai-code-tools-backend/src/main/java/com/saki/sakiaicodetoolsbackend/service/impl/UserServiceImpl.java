@@ -92,7 +92,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @throws BusinessException 当请求参数为空、登录类型不支持或认证失败时抛出
      */
     @Override
-    public UserVO login(LoginRequest request) {
+    public UserVO login(LoginRequest request, HttpServletRequest httpServletRequest) {
         // 验证请求参数
         validateRequest(request, "请求参数不能为空");
 
@@ -104,7 +104,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         User user = loginStrategyFactory.getStrategy(loginType).authenticate(request);
 
         // 构建登录结果
-        return buildLoginResult(user, request.getHttpServletRequest());
+        return buildLoginResult(user, httpServletRequest);
     }
 
     /**
@@ -125,6 +125,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ThrowUtils.throwIf(StrUtil.isBlank(userAccount) || StrUtil.isBlank(password) || StrUtil.isBlank(confirmPassword),
                 ErrorCode.PARAMS_MISSING, "账号或密码不能为空");
         ThrowUtils.throwIf(!StrUtil.equals(password, confirmPassword), ErrorCode.PARAMS_ERROR, "两次输入的密码不一致");
+        ThrowUtils.throwIf(userAccount.length() < 8 || password.length() < 8, ErrorCode.PARAMS_ERROR, "账号或密码长度至少8位");
 
         // 校验账号是否已存在
         boolean accountExists = getOne(new QueryWrapper().where(User::getUserAccount).eq(userAccount).limit(1)) != null;
@@ -366,6 +367,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private void sendEmailCode(String email, String code) throws MessagingException, IOException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
+        helper.setFrom("189444236@qq.com");
         helper.setTo(email);
         helper.setSubject(EMAIL_SUBJECT);
         // 构建邮件内容（HTML格式）

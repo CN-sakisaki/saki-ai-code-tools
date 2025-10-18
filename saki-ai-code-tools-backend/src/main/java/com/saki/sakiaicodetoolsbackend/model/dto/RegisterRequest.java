@@ -13,6 +13,9 @@ import java.io.Serializable;
  * 用于接收用户注册时提交的核心信息，包含账号、密码、确认密码以及可选的邀请码。
  * 账号、密码和确认密码均为必填项，邀请码可根据业务场景自行决定是否提供。
  * </p>
+ * @author saki酱
+ * @version 1.0
+ * @since 2025-10-18
  */
 @Data
 @Schema(description = "用户注册请求参数")

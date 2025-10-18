@@ -6,6 +6,7 @@ import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 用户表 服务层。
@@ -20,7 +21,7 @@ public interface UserService extends IService<User> {
      * @param request 登录请求
      * @return 用户信息
      */
-    UserVO login(LoginRequest request);
+    UserVO login(LoginRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 发送邮箱登录验证码。
