@@ -21,6 +21,7 @@ import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.UserService;
 import com.saki.sakiaicodetoolsbackend.service.login.LoginStrategyFactory;
+import com.saki.sakiaicodetoolsbackend.service.mail.MailService;
 import com.saki.sakiaicodetoolsbackend.utils.IpUtils;
 import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
@@ -56,15 +57,6 @@ import java.util.concurrent.atomic.AtomicReference;
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
-    // ===================== 常量定义 =====================
-
-    /** 邮件主题 */
-    private static final String EMAIL_SUBJECT = "登录验证码";
-
-    /** 邮件模板路径 */
-    private static final String EMAIL_TEMPLATE_PATH = "templates/login-code.html";
-
-    // ===================== 依赖注入 =====================
 
     /** 登录策略工厂，用于根据不同登录类型选择认证策略 */
     private final LoginStrategyFactory loginStrategyFactory;
@@ -75,11 +67,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /** Redis模板，用于存储刷新令牌和验证码 */
     private final StringRedisTemplate redisTemplate;
 
-    /** 邮件发送器，用于发送验证码邮件 */
-    private final JavaMailSender mailSender;
+    /** 发送邮件服务 */
+    private final MailService mailService;
 
-    /** 邮件模板缓存，使用原子引用保证线程安全 */
-    private final AtomicReference<String> emailTemplateCache = new AtomicReference<>();
 
     // ===================== 登录相关方法 =====================
 
@@ -190,7 +180,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         try {
             // 发送验证码邮件
-            sendEmailCode(email, code);
+            mailService.sendEmailCode(email, code);
         } catch (Exception ex) {
             // 如果邮件发送失败，删除Redis中的验证码
             redisTemplate.delete(redisKey);
@@ -356,75 +346,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return UserConstants.DEFAULT_USERNAME_PREFIX + userAccount;
     }
 
-    /**
-     * 发送验证码邮件。
-     *
-     * @param email 目标邮箱地址
-     * @param code 验证码
-     * @throws MessagingException 当邮件发送失败时抛出
-     * @throws IOException 当邮件模板读取失败时抛出
-     */
-    private void sendEmailCode(String email, String code) throws MessagingException, IOException {
-        MimeMessage message = mailSender.createMimeMessage();
-        MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-        helper.setFrom("189444236@qq.com");
-        helper.setTo(email);
-        helper.setSubject(EMAIL_SUBJECT);
-        // 构建邮件内容（HTML格式）
-        helper.setText(buildEmailContent(code), true);
-        mailSender.send(message);
-    }
 
-    /**
-     * 构建邮件内容。
-     * 使用模板文件或默认模板，替换验证码和过期时间占位符。
-     *
-     * @param code 验证码
-     * @return 构建完成的邮件内容
-     * @throws IOException 当模板文件读取失败时抛出
-     */
-    private String buildEmailContent(String code) throws IOException {
-        // 使用缓存或加载邮件模板
-        String template = emailTemplateCache.updateAndGet(current -> {
-            if (StrUtil.isBlank(current)) {
-                try {
-                    return loadTemplate();
-                } catch (IOException e) {
-                    log.error("加载邮件模板失败", e);
-                    return defaultTemplate();
-                }
-            }
-            return current;
-        });
-
-        // 替换模板中的占位符
-        return template.replace("${code}", code)
-                .replace("${expireMinutes}", String.valueOf(AuthConstants.EMAIL_CODE_EXPIRE_MINUTES));
-    }
-
-    /**
-     * 加载邮件模板文件。
-     *
-     * @return 模板文件内容
-     * @throws IOException 当模板文件不存在或读取失败时抛出
-     */
-    private String loadTemplate() throws IOException {
-        ClassPathResource resource = new ClassPathResource(EMAIL_TEMPLATE_PATH);
-        if (!resource.exists()) {
-            // 如果模板文件不存在，返回默认模板
-            return defaultTemplate();
-        }
-        return StreamUtils.copyToString(resource.getInputStream(), StandardCharsets.UTF_8);
-    }
-
-    /**
-     * 获取默认邮件模板。
-     *
-     * @return 默认模板内容
-     */
-    private String defaultTemplate() {
-        return "<p>您的验证码为 <strong>${code}</strong>，有效期 ${expireMinutes} 分钟。</p>";
-    }
 
     /**
      * 验证请求对象是否为空。
