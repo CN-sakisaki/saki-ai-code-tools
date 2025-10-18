@@ -3,6 +3,9 @@ package com.saki.sakiaicodetoolsbackend.controller;
 import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
+import com.saki.sakiaicodetoolsbackend.context.UserContext;
+import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
+import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
@@ -62,6 +65,19 @@ public class UserController {
     @Operation(description = "刷新 AccessToken")
     public BaseResponse<String> refreshAccessToken(@RequestBody TokenRefreshRequest request) {
         return ResultUtils.success(userService.refreshAccessToken(request));
+    }
+
+    /**
+     * 获取当前登录的用户
+     */
+    @GetMapping("/get/info")
+    @Operation(description = "获取当前登录用户")
+    public BaseResponse<UserVO> getUserInfo() {
+        User currentUser = UserContext.getUser();
+        UserVO vo = new UserVO();
+        vo.copyUserInfoFrom(currentUser);
+        ThrowUtils.throwIf(currentUser == null, ErrorCode.NOT_FOUND_ERROR, "未登录或用户不存在");
+        return ResultUtils.success(vo);
     }
 
     /**
