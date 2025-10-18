@@ -3,25 +3,30 @@ spring:
     name: saki-ai-code-tools-backend
   datasource:
     driver-class-name: com.mysql.cj.jdbc.Driver
-    url: jdbc:mysql://localhost:3306/saki_ai_code_tools
+    url: jdbc:mysql://localhost:3306/saki_ai_code_tools?useSSL=false&serverTimezone=Asia/Shanghai
     username: root
     password: SaKi20251013
   data:
     redis:
-      host: 
+      host: localhost
       port: 6379
-      password: 
+      password:
   mail:
-    host: 
-    username: 
-    password: 
+    host: smtp.qq.com
+    username: 189444236@qq.com
+    password:
     port: 465
     properties:
       mail:
         smtp:
           auth: true
+          ssl: true
+          socketFactory:
+            class: javax.net.ssl.SSLSocketFactory
           starttls:
             enable: true
+    default-encoding: UTF-8
+    protocol: smtp
 server:
   port: 8123
   servlet:

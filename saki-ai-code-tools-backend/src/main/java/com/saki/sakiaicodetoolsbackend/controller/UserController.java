@@ -4,6 +4,7 @@ import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
 import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
@@ -12,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -37,10 +39,16 @@ public class UserController {
     @Resource
     private UserService userService;
 
+    @PostMapping("/register")
+    @Operation(description = "用户注册")
+    public BaseResponse<Long> register(@RequestBody RegisterRequest request) {
+        return ResultUtils.success(userService.register(request));
+    }
+
     @PostMapping("/login")
     @Operation(description = "用户登录")
-    public BaseResponse<UserVO> login(@RequestBody LoginRequest request) {
-        return ResultUtils.success(userService.login(request));
+    public BaseResponse<UserVO> login(@RequestBody LoginRequest request, HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.login(request, httpServletRequest));
     }
 
     @PostMapping("/login/send-email-code")
