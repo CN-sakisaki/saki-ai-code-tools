@@ -10,11 +10,11 @@ spring:
     redis:
       host: localhost
       port: 6379
-      password:
+      password: SaKi20251013
   mail:
     host: smtp.qq.com
     username: 189444236@qq.com
-    password:
+    password: sqxasegmupribiei
     port: 465
     properties:
       mail:
@@ -46,4 +46,8 @@ jwt:
   secret: VBW4ris/Gm2W+PqxqPe+zJ0UuqolPIxCFCh63g8TsII=
   access-expire-minutes: 30
   refresh-expire-days: 7
+
+# 自定义配置，用于发送时动态取出发件人邮箱
+mail:
+  mailFrom: ${spring.mail.username}
 
