@@ -56,9 +56,5 @@ public class LoginRequest implements Serializable {
     @Schema(description = "登录验证码")
     private String loginCode;
 
-    /**
-     * 请求头信息
-     */
-    private HttpServletRequest httpServletRequest;
 }
 
