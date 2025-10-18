@@ -1,7 +1,7 @@
 package com.saki.sakiaicodetoolsbackend.service.mail;
 
 import cn.hutool.core.util.StrUtil;
-import com.saki.sakiaicodetoolsbackend.config.MailProperties;
+import com.saki.sakiaicodetoolsbackend.config.CustomMailProperties;
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import jakarta.mail.MessagingException;
 import jakarta.mail.internet.MimeMessage;
@@ -36,7 +36,7 @@ public class MailService {
 
     // ===================== 依赖注入 =====================
 
-    private final MailProperties mailProperties;
+    private final CustomMailProperties customMailProperties;
 
     /** 邮件发送器，用于发送验证码邮件 */
     private final JavaMailSender mailSender;
@@ -44,9 +44,9 @@ public class MailService {
     /** 邮件模板缓存，使用原子引用保证线程安全 */
     private final AtomicReference<String> emailTemplateCache = new AtomicReference<>();
 
-    public MailService(JavaMailSender mailSender, MailProperties mailProperties) {
+    public MailService(JavaMailSender mailSender, CustomMailProperties customMailProperties) {
         this.mailSender = mailSender;
-        this.mailProperties = mailProperties;
+        this.customMailProperties = customMailProperties;
     }
 
     /**
@@ -60,7 +60,7 @@ public class MailService {
     public void sendEmailCode(String email, String code) throws MessagingException, IOException {
         MimeMessage message = mailSender.createMimeMessage();
         MimeMessageHelper helper = new MimeMessageHelper(message, StandardCharsets.UTF_8.name());
-        helper.setFrom(mailProperties.getMailFrom());
+        helper.setFrom(customMailProperties.getMailFrom());
         helper.setTo(email);
         helper.setSubject(EMAIL_SUBJECT);
         // 构建邮件内容（HTML格式）
