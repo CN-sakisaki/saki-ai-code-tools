@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component;
 @Data
 @Component
 @ConfigurationProperties(prefix = "mail")
-public class MailProperties {
+public class CustomMailProperties {
 
     /**
      * 发送邮件源地址
