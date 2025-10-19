@@ -1,9 +1,17 @@
 package com.saki.sakiaicodetoolsbackend.service;
 
 import com.mybatisflex.core.service.IService;
+import com.mybatisflex.core.paginate.Page;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
@@ -45,4 +53,68 @@ public interface UserService extends IService<User> {
      * @return 新用户的主键 ID
      */
     Long register(RegisterRequest request);
+
+    /**
+     * 管理员新增用户。
+     *
+     * @param request 新增用户请求
+     * @return 新增用户的主键 ID
+     */
+    Long createUser(UserAddRequest request);
+
+    /**
+     * 管理员删除用户。
+     *
+     * @param request 删除请求
+     * @return 删除是否成功
+     */
+    Boolean deleteUsers(UserDeleteRequest request);
+
+    /**
+     * 管理员更新用户信息。
+     *
+     * @param request 更新请求
+     * @return 更新是否成功
+     */
+    Boolean updateUser(UserUpdateRequest request);
+
+    /**
+     * 分页查询用户列表。
+     *
+     * @param request 查询请求
+     * @return 分页结果
+     */
+    Page<User> listUsersByPage(UserQueryRequest request);
+
+    /**
+     * 根据主键获取用户详情。
+     *
+     * @param id 用户ID
+     * @return 用户详情
+     */
+    User getUserDetail(Long id);
+
+    /**
+     * 更新当前用户的基础资料。
+     *
+     * @param request 更新请求
+     * @return 是否更新成功
+     */
+    Boolean updateCurrentUserProfile(UserProfileUpdateRequest request);
+
+    /**
+     * 更新当前用户的邮箱。
+     *
+     * @param request 更新请求
+     * @return 是否更新成功
+     */
+    Boolean updateCurrentUserEmail(UserEmailUpdateRequest request);
+
+    /**
+     * 更新当前用户的手机号。
+     *
+     * @param request 更新请求
+     * @return 是否更新成功
+     */
+    Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request);
 }
