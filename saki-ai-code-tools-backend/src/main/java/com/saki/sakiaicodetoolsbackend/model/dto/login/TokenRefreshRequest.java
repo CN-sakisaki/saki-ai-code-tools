@@ -1,4 +1,4 @@
-package com.saki.sakiaicodetoolsbackend.model.dto;
+package com.saki.sakiaicodetoolsbackend.model.dto.login;
 
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
