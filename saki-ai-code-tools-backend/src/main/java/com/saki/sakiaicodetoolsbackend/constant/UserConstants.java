@@ -87,5 +87,5 @@ public final class UserConstants {
      * 用户盐值的字节长度。
      * 用于密码加密的盐值的字节数。
      */
-    public static final int USER_SALT_BYTE_LENGTH = 8;
+    public static final int USER_SALT_BYTE_LENGTH = 16;
 }

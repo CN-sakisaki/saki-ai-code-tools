@@ -1,21 +1,33 @@
 package com.saki.sakiaicodetoolsbackend.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.HexUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
+import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.constant.UserConstants;
+import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
@@ -30,10 +42,15 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 用户服务实现类，负责用户登录、令牌管理、邮件验证码发送等核心业务逻辑。
@@ -48,7 +65,27 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+    private static final String SORT_ORDER_ASC = "ascend";
+    private static final String DEFAULT_SORT_COLUMN = "create_time";
+    private static final Map<String, String> SORT_FIELD_MAP = Map.ofEntries(
+            Map.entry("id", "id"),
+            Map.entry("createTime", "create_time"),
+            Map.entry("updateTime", "update_time"),
+            Map.entry("lastLoginTime", "last_login_time"),
+            Map.entry("userAccount", "user_account"),
+            Map.entry("userName", "user_name"),
+            Map.entry("userRole", "user_role"),
+            Map.entry("userStatus", "user_status"),
+            Map.entry("isVip", "is_vip")
+    );
 
+    private static final CopyOptions COPY_NON_NULL_OPTIONS = CopyOptions.create().ignoreNullValue().ignoreError();
+
+    private static final String COLUMN_USER_ACCOUNT = "user_account";
+    private static final String COLUMN_USER_EMAIL = "user_email";
+    private static final String COLUMN_USER_PHONE = "user_phone";
+
+    
     /** 登录策略工厂，用于根据不同登录类型选择认证策略 */
     private final LoginStrategyFactory loginStrategyFactory;
 
@@ -138,6 +175,316 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         boolean saved = save(newUser);
         ThrowUtils.throwIf(!saved, ErrorCode.SYSTEM_ERROR, "用户注册失败");
         return newUser.getId();
+    }
+
+    // ===================== 管理员相关方法 =====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createUser(UserAddRequest request) {
+        validateRequest(request, "新增用户请求不能为空");
+
+        String userAccount = StrUtil.trimToNull(request.getUserAccount());
+        String rawPassword = StrUtil.trimToNull(request.getUserPassword());
+        ThrowUtils.throwIf(StrUtil.isBlank(userAccount), ErrorCode.PARAMS_MISSING, "用户账号不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "用户密码不能为空");
+        ThrowUtils.throwIf(userAccount.length() < 8 || rawPassword.length() < 8,
+                ErrorCode.PARAMS_ERROR, "账号和密码长度至少8位");
+
+        ThrowUtils.throwIf(existsByColumn(COLUMN_USER_ACCOUNT, userAccount, null),
+                ErrorCode.DATA_ALREADY_EXISTS, "账号已存在");
+
+        String email = StrUtil.trimToNull(request.getUserEmail());
+        if (StrUtil.isNotBlank(email)) {
+            ThrowUtils.throwIf(existsByColumn(COLUMN_USER_EMAIL, email, null),
+                    ErrorCode.DATA_ALREADY_EXISTS, "邮箱已被占用");
+        }
+
+        String phone = StrUtil.trimToNull(request.getUserPhone());
+        if (StrUtil.isNotBlank(phone)) {
+            ThrowUtils.throwIf(existsByColumn(COLUMN_USER_PHONE, phone, null),
+                    ErrorCode.DATA_ALREADY_EXISTS, "手机号已被占用");
+        }
+
+        String salt = generateUserSalt();
+        String encryptedPassword = DigestUtil.sha256Hex(rawPassword + salt);
+        String inviteCode = generateUniqueInviteCode();
+        LocalDateTime now = LocalDateTime.now();
+
+        User user = new User();
+        BeanUtil.copyProperties(request, user, COPY_NON_NULL_OPTIONS);
+        user.setUserAccount(userAccount);
+        user.setUserPassword(encryptedPassword);
+        user.setUserSalt(salt);
+        user.setInviteCode(inviteCode);
+        user.setUserEmail(email);
+        user.setUserPhone(phone);
+        user.setUserName(StrUtil.blankToDefault(user.getUserName(), buildDefaultUserName(userAccount)));
+        user.setUserAvatar(StrUtil.blankToDefault(user.getUserAvatar(), UserConstants.DEFAULT_AVATAR_PATH));
+        user.setUserProfile(StrUtil.blankToDefault(user.getUserProfile(), UserConstants.DEFAULT_PROFILE));
+        user.setUserRole(StrUtil.blankToDefault(user.getUserRole(), UserConstants.DEFAULT_USER_ROLE));
+        user.setUserStatus(Optional.ofNullable(user.getUserStatus()).orElse(UserConstants.DEFAULT_USER_STATUS));
+        user.setIsVip(Optional.ofNullable(user.getIsVip()).orElse(UserConstants.DEFAULT_VIP_STATUS));
+        user.setCreateTime(now);
+        user.setUpdateTime(now);
+        user.setEditTime(now);
+        user.setIsDelete(0);
+
+        boolean saved = save(user);
+        ThrowUtils.throwIf(!saved, ErrorCode.DATA_SAVE_FAILED, "新增用户失败");
+        return user.getId();
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean deleteUsers(UserDeleteRequest request) {
+        validateRequest(request, "删除用户请求不能为空");
+        List<Long> ids = request.getIds();
+        ThrowUtils.throwIf(CollUtil.isEmpty(ids), ErrorCode.PARAMS_MISSING, "待删除的用户ID不能为空");
+
+        List<User> users = listByIds(ids);
+        Set<Long> existingIds = users.stream()
+                .map(User::getId)
+                .collect(Collectors.toSet());
+        List<Long> missingIds = ids.stream()
+                .filter(id -> !existingIds.contains(id))
+                .collect(Collectors.toList());
+        ThrowUtils.throwIf(CollUtil.isNotEmpty(missingIds), ErrorCode.NOT_FOUND_ERROR,
+                "部分用户不存在，ID=" + missingIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+
+        boolean removed = removeByIds(ids);
+        ThrowUtils.throwIf(!removed, ErrorCode.DATA_DELETE_FAILED, "删除用户失败");
+        return Boolean.TRUE;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateUser(UserUpdateRequest request) {
+        validateRequest(request, "更新用户请求不能为空");
+        Long id = request.getId();
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
+
+        User existingUser = getById(id);
+        ThrowUtils.throwIf(existingUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+
+        if (StrUtil.isNotBlank(request.getUserEmail())) {
+            ThrowUtils.throwIf(existsByColumn(COLUMN_USER_EMAIL, StrUtil.trim(request.getUserEmail()), id),
+                    ErrorCode.DATA_ALREADY_EXISTS, "邮箱已被占用");
+        }
+        if (StrUtil.isNotBlank(request.getUserPhone())) {
+            ThrowUtils.throwIf(existsByColumn(COLUMN_USER_PHONE, StrUtil.trim(request.getUserPhone()), id),
+                    ErrorCode.DATA_ALREADY_EXISTS, "手机号已被占用");
+        }
+
+        User updateUser = new User();
+        BeanUtil.copyProperties(request, updateUser, COPY_NON_NULL_OPTIONS);
+        updateUser.setId(id);
+        LocalDateTime now = LocalDateTime.now();
+        updateUser.setUpdateTime(now);
+        if (updateUser.getEditTime() == null) {
+            updateUser.setEditTime(now);
+        }
+
+        boolean updated = updateById(updateUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新用户失败");
+        return Boolean.TRUE;
+    }
+
+    @Override
+    public Page<User> listUsersByPage(UserQueryRequest request) {
+        validateRequest(request, "分页查询请求不能为空");
+
+        Page<User> page = new Page<>(request.getPageNum(), request.getPageSize());
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .where(User::getIsDelete).eq(0);
+
+        if (StrUtil.isNotBlank(request.getUserAccount())) {
+            queryWrapper.and(User::getUserAccount).like(StrUtil.trim(request.getUserAccount()));
+        }
+        if (StrUtil.isNotBlank(request.getUserName())) {
+            queryWrapper.and(User::getUserName).like(StrUtil.trim(request.getUserName()));
+        }
+        if (StrUtil.isNotBlank(request.getUserEmail())) {
+            queryWrapper.and(User::getUserEmail).like(StrUtil.trim(request.getUserEmail()));
+        }
+        if (StrUtil.isNotBlank(request.getUserPhone())) {
+            queryWrapper.and(User::getUserPhone).like(StrUtil.trim(request.getUserPhone()));
+        }
+        if (StrUtil.isNotBlank(request.getUserRole())) {
+            queryWrapper.and(User::getUserRole).eq(StrUtil.trim(request.getUserRole()));
+        }
+        if (request.getUserStatus() != null) {
+            queryWrapper.and(User::getUserStatus).eq(request.getUserStatus());
+        }
+        if (request.getIsVip() != null) {
+            queryWrapper.and(User::getIsVip).eq(request.getIsVip());
+        }
+        if (request.getVipStartTime() != null) {
+            queryWrapper.and(User::getVipStartTime).ge(request.getVipStartTime());
+        }
+        if (request.getVipEndTime() != null) {
+            queryWrapper.and(User::getVipEndTime).le(request.getVipEndTime());
+        }
+        if (request.getLastLoginTime() != null) {
+            queryWrapper.and(User::getLastLoginTime).ge(request.getLastLoginTime());
+        }
+        if (request.getEditTime() != null) {
+            queryWrapper.and(User::getEditTime).ge(request.getEditTime());
+        }
+        if (request.getCreateTime() != null) {
+            queryWrapper.and(User::getCreateTime).ge(request.getCreateTime());
+        }
+
+        String sortField = StrUtil.trimToNull(request.getSortField());
+        String column = sortField == null ? null : SORT_FIELD_MAP.get(sortField);
+        boolean asc = StrUtil.equalsIgnoreCase(StrUtil.trimToNull(request.getSortOrder()), SORT_ORDER_ASC);
+        if (column != null) {
+            queryWrapper.orderBy(column, asc);
+        } else {
+            queryWrapper.orderBy(DEFAULT_SORT_COLUMN, false);
+        }
+
+        return page(page, queryWrapper);
+    }
+
+    @Override
+    public User getUserDetail(Long id) {
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
+        User user = getById(id);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        return user;
+    }
+
+    // ===================== 用户自助相关方法 =====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateCurrentUserProfile(UserProfileUpdateRequest request) {
+        validateRequest(request, "个人信息更新请求不能为空");
+        User currentUser = getCurrentUserOrThrow();
+
+        User updateUser = new User();
+        BeanUtil.copyProperties(request, updateUser, COPY_NON_NULL_OPTIONS);
+        updateUser.setId(currentUser.getId());
+        LocalDateTime now = LocalDateTime.now();
+        updateUser.setEditTime(now);
+        updateUser.setUpdateTime(now);
+
+        boolean updated = updateById(updateUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新个人信息失败");
+        refreshUserContext(currentUser, updateUser);
+        return Boolean.TRUE;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateCurrentUserEmail(UserEmailUpdateRequest request) {
+        validateRequest(request, "邮箱更新请求不能为空");
+        User currentUser = getCurrentUserOrThrow();
+
+        String rawPassword = StrUtil.trimToNull(request.getUserPassword());
+        String newEmail = StrUtil.trimToNull(request.getNewEmail());
+        String code = StrUtil.trimToNull(request.getEmailCode());
+
+        ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "密码不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(newEmail), ErrorCode.PARAMS_MISSING, "新邮箱不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_MISSING, "验证码不能为空");
+
+        verifyPassword(currentUser, rawPassword);
+        ThrowUtils.throwIf(StrUtil.equalsIgnoreCase(newEmail, currentUser.getUserEmail()),
+                ErrorCode.PARAMS_ERROR, "新邮箱不能与当前邮箱相同");
+        ThrowUtils.throwIf(existsByColumn(COLUMN_USER_EMAIL, newEmail, currentUser.getId()),
+                ErrorCode.DATA_ALREADY_EXISTS, "邮箱已被占用");
+
+        String redisKey = AuthConstants.buildEmailCodeKey(newEmail);
+        validateAndConsumeCode(redisKey, code, "邮箱验证码已过期");
+
+        User updateUser = new User();
+        updateUser.setId(currentUser.getId());
+        updateUser.setUserEmail(newEmail);
+        updateUser.setUpdateTime(LocalDateTime.now());
+
+        boolean updated = updateById(updateUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新邮箱失败");
+        refreshUserContext(currentUser, updateUser);
+        return Boolean.TRUE;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request) {
+        validateRequest(request, "手机号更新请求不能为空");
+        User currentUser = getCurrentUserOrThrow();
+
+        String rawPassword = StrUtil.trimToNull(request.getUserPassword());
+        String newPhone = StrUtil.trimToNull(request.getNewPhone());
+        String code = StrUtil.trimToNull(request.getPhoneCode());
+
+        ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "密码不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(newPhone), ErrorCode.PARAMS_MISSING, "新手机号不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_MISSING, "验证码不能为空");
+
+        verifyPassword(currentUser, rawPassword);
+        ThrowUtils.throwIf(StrUtil.equals(newPhone, currentUser.getUserPhone()),
+                ErrorCode.PARAMS_ERROR, "新手机号不能与当前手机号相同");
+        ThrowUtils.throwIf(existsByColumn(COLUMN_USER_PHONE, newPhone, currentUser.getId()),
+                ErrorCode.DATA_ALREADY_EXISTS, "手机号已被占用");
+
+        String redisKey = AuthConstants.buildPhoneCodeKey(newPhone);
+        validateAndConsumeCode(redisKey, code, "短信验证码已过期");
+
+        User updateUser = new User();
+        updateUser.setId(currentUser.getId());
+        updateUser.setUserPhone(newPhone);
+        updateUser.setUpdateTime(LocalDateTime.now());
+
+        boolean updated = updateById(updateUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新手机号失败");
+        refreshUserContext(currentUser, updateUser);
+        return Boolean.TRUE;
+    }
+
+    private boolean existsByColumn(String column, String value, Long excludeId) {
+        QueryWrapper queryWrapper = QueryWrapper.create()
+                .where(User::getIsDelete).eq(0);
+        switch (column) {
+            case COLUMN_USER_ACCOUNT -> queryWrapper.and(User::getUserAccount).eq(value);
+            case COLUMN_USER_EMAIL -> queryWrapper.and(User::getUserEmail).eq(value);
+            case COLUMN_USER_PHONE -> queryWrapper.and(User::getUserPhone).eq(value);
+            default -> throw new IllegalArgumentException("Unsupported column: " + column);
+        }
+        if (excludeId != null) {
+            queryWrapper.and(User::getId).ne(excludeId);
+        }
+        queryWrapper.limit(1);
+        return getOne(queryWrapper) != null;
+    }
+
+    private User getCurrentUserOrThrow() {
+        User currentUser = UserContext.getUser();
+        ThrowUtils.throwIf(currentUser == null, ErrorCode.NOT_LOGIN_ERROR, "未登录或会话已失效");
+        return currentUser;
+    }
+
+    private void verifyPassword(User user, String rawPassword) {
+        String encrypted = DigestUtil.sha256Hex(rawPassword + user.getUserSalt());
+        ThrowUtils.throwIf(!StrUtil.equals(encrypted, user.getUserPassword()),
+                ErrorCode.PARAMS_ERROR, "密码不正确");
+    }
+
+    private void validateAndConsumeCode(String redisKey, String providedCode, String expiredMessage) {
+        String cachedCode = redisTemplate.opsForValue().get(redisKey);
+        ThrowUtils.throwIf(StrUtil.isBlank(cachedCode), ErrorCode.LOGIN_EXPIRED, expiredMessage);
+        ThrowUtils.throwIf(!StrUtil.equals(cachedCode, providedCode), ErrorCode.PARAMS_ERROR, "验证码不正确");
+        redisTemplate.delete(redisKey);
+    }
+
+    private void refreshUserContext(User currentUser, User updatedValues) {
+        if (currentUser == null || updatedValues == null) {
+            return;
+        }
+        BeanUtil.copyProperties(updatedValues, currentUser, COPY_NON_NULL_OPTIONS);
+        UserContext.setUser(currentUser);
     }
 
     // ===================== 邮箱验证码相关方法 =====================
