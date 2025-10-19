@@ -1,6 +1,6 @@
 package com.saki.sakiaicodetoolsbackend.service.login;
 
-import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
 
