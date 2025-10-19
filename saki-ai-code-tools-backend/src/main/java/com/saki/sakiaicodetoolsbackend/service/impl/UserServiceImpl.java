@@ -13,9 +13,9 @@ import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
-import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
@@ -25,24 +25,15 @@ import com.saki.sakiaicodetoolsbackend.service.mail.MailService;
 import com.saki.sakiaicodetoolsbackend.utils.IpUtils;
 import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.MimeMessage;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StreamUtils;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Optional;
-import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 用户服务实现类，负责用户登录、令牌管理、邮件验证码发送等核心业务逻辑。

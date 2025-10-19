@@ -1,7 +1,7 @@
 package com.saki.sakiaicodetoolsbackend.service.login.strategy;
 
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
-import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
 import org.springframework.stereotype.Component;
 
