@@ -1,9 +1,9 @@
 package com.saki.sakiaicodetoolsbackend.service;
 
 import com.mybatisflex.core.service.IService;
-import com.saki.sakiaicodetoolsbackend.model.dto.LoginRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.RegisterRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
