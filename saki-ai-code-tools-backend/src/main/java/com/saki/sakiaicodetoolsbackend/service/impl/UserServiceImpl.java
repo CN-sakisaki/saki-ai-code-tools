@@ -1,39 +1,65 @@
 package com.saki.sakiaicodetoolsbackend.service.impl;
 
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.bean.copier.CopyOptions;
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.lang.Validator;
 import cn.hutool.core.util.HexUtil;
 import cn.hutool.core.util.RandomUtil;
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
+import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.update.UpdateChain;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.constant.UserConstants;
+import com.saki.sakiaicodetoolsbackend.constant.UserFieldConstants;
+import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
+import com.saki.sakiaicodetoolsbackend.model.enums.VipStatusEnum;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.UserService;
 import com.saki.sakiaicodetoolsbackend.service.login.LoginStrategyFactory;
 import com.saki.sakiaicodetoolsbackend.service.mail.MailService;
 import com.saki.sakiaicodetoolsbackend.utils.IpUtils;
 import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
+import com.saki.sakiaicodetoolsbackend.utils.QueryWrapperUtils;
+import com.saki.sakiaicodetoolsbackend.utils.VipTimeUtils;
 import io.jsonwebtoken.Claims;
+import jakarta.mail.MessagingException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.io.IOException;
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 /**
  * 用户服务实现类，负责用户登录、令牌管理、邮件验证码发送等核心业务逻辑。
@@ -48,6 +74,21 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
+    private static final String SORT_ORDER_ASC = "ascend";
+    private static final String DEFAULT_SORT_COLUMN = "create_time";
+
+    private static final Map<String, String> SORT_FIELD_MAP = Map.ofEntries(
+            Map.entry("id", UserFieldConstants.ID),
+            Map.entry("createTime", UserFieldConstants.CREATE_TIME),
+            Map.entry("updateTime", UserFieldConstants.UPDATE_TIME),
+            Map.entry("lastLoginTime", UserFieldConstants.LAST_LOGIN_TIME),
+            Map.entry("userAccount", UserFieldConstants.USER_ACCOUNT),
+            Map.entry("userName", UserFieldConstants.USER_NAME),
+            Map.entry("userRole", UserFieldConstants.USER_ROLE),
+            Map.entry("userStatus", UserFieldConstants.USER_STATUS),
+            Map.entry("isVip", UserFieldConstants.IS_VIP)
+    );
+
 
     /** 登录策略工厂，用于根据不同登录类型选择认证策略 */
     private final LoginStrategyFactory loginStrategyFactory;
@@ -56,10 +97,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private final JwtUtils jwtUtils;
 
     /** Redis模板，用于存储刷新令牌和验证码 */
-    private final StringRedisTemplate redisTemplate;
+    private final StringRedisTemplate stringRedisTemplate;
 
     /** 发送邮件服务 */
     private final MailService mailService;
+
+    private final UserMapper userMapper;
 
 
     // ===================== 登录相关方法 =====================
@@ -131,13 +174,444 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .isVip(UserConstants.DEFAULT_VIP_STATUS)
                 .inviteCode(inviteCode)
                 .userSalt(salt)
-                .createTime(now)
-                .updateTime(now)
                 .build();
 
         boolean saved = save(newUser);
         ThrowUtils.throwIf(!saved, ErrorCode.SYSTEM_ERROR, "用户注册失败");
         return newUser.getId();
+    }
+
+    // ===================== 管理员相关方法 =====================
+
+    /**
+     * 新增用户。
+     * <p>
+     * 该方法会对请求参数进行严格校验，包括：
+     * <ul>
+     *   <li>账号与密码的非空与长度校验（均需≥8位）；</li>
+     *   <li>邮箱与手机号的格式及唯一性校验；</li>
+     *   <li>自动生成盐值并进行密码加密；</li>
+     *   <li>为用户生成唯一邀请码及默认信息；</li>
+     *   <li>若设置为 VIP 用户，则计算并设置会员起止时间。</li>
+     * </ul>
+     * 方法执行过程中使用 {@code @Transactional(rollbackFor = Exception.class)}，
+     * 若任意异常发生将回滚事务，确保数据一致性。
+     * </p>
+     *
+     * @param request 用户新增请求对象，不能为空。包含账号、密码、邮箱、手机号、昵称等用户基础信息。
+     * @return 新增用户的主键 ID。
+     * @throws BusinessException 当请求参数不合法、数据重复或保存失败时抛出。
+     * @see UserAddRequest
+     * @see ErrorCode
+     * @see VipTimeUtils
+     * @see Transactional
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Long createUser(UserAddRequest request) {
+        validateRequest(request, "新增用户请求不能为空");
+        // 账号与密码的非空与长度校验（均需≥8位）
+        String userAccount = StrUtil.trimToNull(request.getUserAccount());
+        String rawPassword = StrUtil.trimToNull(request.getUserPassword());
+        ThrowUtils.throwIf(StrUtil.isBlank(userAccount), ErrorCode.PARAMS_MISSING, "用户账号不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "用户密码不能为空");
+        ThrowUtils.throwIf(userAccount.length() < 8 || rawPassword.length() < 8, ErrorCode.PARAMS_ERROR, "账号和密码长度至少8位");
+        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_ACCOUNT, userAccount, null), ErrorCode.DATA_ALREADY_EXISTS, "账号已存在");
+        // 邮箱与手机号的格式及唯一性校验
+        String email = StrUtil.trimToNull(request.getUserEmail());
+        String phone = StrUtil.trimToNull(request.getUserPhone());
+        validateEmailAndPhone(email, phone, null);
+        // 自动生成盐值并进行密码加密
+        String salt = generateUserSalt();
+        String encryptedPassword = DigestUtil.sha256Hex(rawPassword + salt);
+        // 为用户生成唯一邀请码
+        String inviteCode = generateUniqueInviteCode();
+        User user = new User();
+        BeanUtil.copyProperties(request, user, CopyOptions.create().ignoreNullValue().ignoreError());
+        user.setUserPassword(encryptedPassword);
+        user.setUserSalt(salt);
+        user.setInviteCode(inviteCode);
+        user.setUserName(StrUtil.blankToDefault(user.getUserName(), buildDefaultUserName(userAccount)));
+        user.setUserAvatar(StrUtil.blankToDefault(user.getUserAvatar(), UserConstants.DEFAULT_AVATAR_PATH));
+        user.setUserProfile(StrUtil.blankToDefault(user.getUserProfile(), UserConstants.DEFAULT_PROFILE));
+        user.setUserRole(StrUtil.blankToDefault(user.getUserRole(), UserConstants.DEFAULT_USER_ROLE));
+        user.setUserStatus(Optional.ofNullable(user.getUserStatus()).orElse(UserConstants.DEFAULT_USER_STATUS));
+        Integer isVip = Optional.ofNullable(user.getIsVip()).orElse(UserConstants.DEFAULT_VIP_STATUS);
+        user.setIsVip(isVip);
+        applyVipTimeIfNeeded(isVip, user);
+
+        boolean saved = save(user);
+        ThrowUtils.throwIf(!saved, ErrorCode.DATA_SAVE_FAILED, "新增用户失败");
+        return user.getId();
+    }
+
+    /**
+     * 批量删除用户。
+     * <p>
+     * 该方法会根据传入的用户 ID 列表删除对应的用户记录，执行前会：
+     * <ul>
+     *   <li>验证请求参数是否合法（包括空值与 ID 列表非空校验）；</li>
+     *   <li>查询数据库中实际存在的用户，校验待删除的 ID 是否全部存在；</li>
+     *   <li>若存在不存在的用户 ID，将抛出异常提示；</li>
+     *   <li>所有校验通过后，执行批量删除操作。</li>
+     * </ul>
+     * 方法使用 {@code @Transactional(rollbackFor = Exception.class)}，
+     * 当出现任意异常时将自动回滚事务，确保数据一致性与安全性。
+     * </p>
+     *
+     * @param request 用户删除请求对象，不能为空。内部应包含待删除的用户 ID 列表。
+     * @return 删除结果标识，始终返回 {@code true} 表示删除成功。
+     * @throws BusinessException 当请求参数缺失、部分用户不存在或删除失败时抛出。
+     * @see UserDeleteRequest
+     * @see ErrorCode
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean deleteUsers(UserDeleteRequest request) {
+        validateRequest(request, "删除用户请求不能为空");
+        List<Long> ids = request.getIds();
+        ThrowUtils.throwIf(CollUtil.isEmpty(ids), ErrorCode.PARAMS_MISSING, "待删除的用户ID不能为空");
+
+        // 一次性从数据库中查询出所有匹配这些 ID 的用户
+        List<User> users = listByIds(ids);
+        // 提取数据库中实际存在的用户 ID 集合
+        Set<Long> existingIds = users.stream()
+                .map(User::getId)
+                .collect(Collectors.toSet());
+        // 从前端传入的 ID 列表中过滤出不存在于数据库的 ID
+        List<Long> missingIds = ids.stream()
+                .filter(id -> !existingIds.contains(id))
+                .collect(Collectors.toList());
+        // 若存在未找到的用户 ID，则抛出异常并终止删除操作
+        ThrowUtils.throwIf(CollUtil.isNotEmpty(missingIds), ErrorCode.NOT_FOUND_ERROR,
+                "部分用户不存在，ID=" + missingIds.stream().map(String::valueOf).collect(Collectors.joining(",")));
+
+        boolean removed = removeByIds(ids);
+        ThrowUtils.throwIf(!removed, ErrorCode.DATA_DELETE_FAILED, "删除用户失败");
+        return Boolean.TRUE;
+    }
+
+    /**
+     * 更新用户信息。
+     * <p>
+     * 该方法用于根据前端请求更新用户基本资料，包括账号、邮箱、手机号、角色、VIP 状态等信息。
+     * 在执行更新前，会进行以下操作：
+     * <ul>
+     *     <li>验证请求参数合法性（包括用户 ID 非空校验）；</li>
+     *     <li>查询数据库中原始用户信息，确保目标用户存在；</li>
+     *     <li>校验邮箱和手机号的格式与唯一性（排除当前用户自身）；</li>
+     *     <li>使用 {@link BeanUtil#copyProperties(Object, Object, CopyOptions)} 仅复制非空字段，避免覆盖数据库原有值；</li>
+     *     <li>若用户为 VIP，则自动更新会员起止时间；</li>
+     *     <li>最终调用 {@code updateById()} 执行持久化更新。</li>
+     * </ul>
+     * 方法带有 {@code @Transactional(rollbackFor = Exception.class)}，
+     * 若执行过程中出现任何异常，将自动回滚事务，保证数据一致性。
+     * </p>
+     *
+     * @param request 用户更新请求对象，不能为空，必须包含用户 ID 及待更新字段。
+     * @return 更新结果标识，始终返回 {@code true} 表示更新成功。
+     * @throws BusinessException 当请求参数缺失、用户不存在、数据冲突或数据库操作失败时抛出。
+     * @see UserUpdateRequest
+     * @see #validateEmailAndPhone(String, String, Long)
+     * @see #applyVipTimeIfNeeded(Integer, User)
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateUser(UserUpdateRequest request) {
+        // 参数非空校验
+        validateRequest(request, "更新用户请求不能为空");
+        Long id = request.getId();
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
+        // 查询数据库中的原始用户信息
+        User existingUser = getById(id);
+        ThrowUtils.throwIf(existingUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        // 校验邮箱和手机号的格式与唯一性（排除当前用户）
+        String newEmail = StrUtil.trim(request.getUserEmail());
+        String newPhone = StrUtil.trim(request.getUserPhone());
+        validateEmailAndPhone(newEmail, newPhone, id);
+        // 将请求中非空字段复制到现有用户对象，避免覆盖原值为 null
+        BeanUtil.copyProperties(request, existingUser, CopyOptions.create().ignoreNullValue().ignoreError());
+        // 执行数据库更新操作
+        boolean updated = updateById(existingUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新用户失败");
+        return Boolean.TRUE;
+    }
+
+    @Override
+    public Page<User> listUsersByPage(UserQueryRequest request) {
+        validateRequest(request, "分页查询请求不能为空");
+
+        Page<User> page = new Page<>(request.getPageNum(), request.getPageSize());
+        QueryWrapper queryWrapper = QueryWrapper.create().where(User::getIsDelete).eq(0);
+
+        QueryWrapperUtils.applyIfNotBlank(request.getUserAccount(), val -> queryWrapper.and(User::getUserAccount).like(val));
+        QueryWrapperUtils.applyIfNotBlank(request.getUserName(), val -> queryWrapper.and(User::getUserName).like(val));
+        QueryWrapperUtils.applyIfNotBlank(request.getUserEmail(), val -> queryWrapper.and(User::getUserEmail).like(val));
+        QueryWrapperUtils.applyIfNotBlank(request.getUserPhone(), val -> queryWrapper.and(User::getUserPhone).like(val));
+        QueryWrapperUtils.applyIfNotBlank(request.getUserRole(), val -> queryWrapper.and(User::getUserRole).eq(val));
+
+        QueryWrapperUtils.applyIfNotNull(request.getUserStatus(), val -> queryWrapper.and(User::getUserStatus).eq(val));
+        QueryWrapperUtils.applyIfNotNull(request.getIsVip(), val -> queryWrapper.and(User::getIsVip).eq(val));
+        QueryWrapperUtils.applyIfNotNull(request.getVipStartTime(), val -> queryWrapper.and(User::getVipStartTime).ge(val));
+        QueryWrapperUtils.applyIfNotNull(request.getVipEndTime(), val -> queryWrapper.and(User::getVipEndTime).le(val));
+        QueryWrapperUtils.applyIfNotNull(request.getLastLoginTime(), val -> queryWrapper.and(User::getLastLoginTime).ge(val));
+        QueryWrapperUtils.applyIfNotNull(request.getEditTime(), val -> queryWrapper.and(User::getEditTime).ge(val));
+        QueryWrapperUtils.applyIfNotNull(request.getCreateTime(), val -> queryWrapper.and(User::getCreateTime).ge(val));
+
+        String sortField = StrUtil.trimToNull(request.getSortField());
+        String column = sortField == null ? null : SORT_FIELD_MAP.get(sortField);
+        boolean asc = StrUtil.equalsIgnoreCase(StrUtil.trimToNull(request.getSortOrder()), SORT_ORDER_ASC);
+        if (column != null) {
+            queryWrapper.orderBy(column, asc);
+        } else {
+            queryWrapper.orderBy(DEFAULT_SORT_COLUMN, false);
+        }
+
+        return page(page, queryWrapper);
+    }
+
+    @Override
+    public User getUserDetail(Long id) {
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
+        User user = getById(id);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        return user;
+    }
+
+    @Override
+    public UserVO getUserVODetail(Long id) {
+        ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
+        User user = getById(id);
+        ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
+        UserVO vo = new UserVO();
+        vo.copyUserInfoFrom(user);
+        return vo;
+    }
+
+    // ===================== 用户自助相关方法 =====================
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateCurrentUserProfile(UserProfileUpdateRequest request) {
+        validateRequest(request, "个人信息更新请求不能为空");
+        User currentUser = getCurrentUserOrThrow();
+
+        BeanUtil.copyProperties(request, currentUser, CopyOptions.create().ignoreNullValue().ignoreError());
+
+        boolean updated = updateById(currentUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新个人信息失败");
+        refreshUserContext(currentUser);
+        return Boolean.TRUE;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateCurrentUserEmail(UserEmailUpdateRequest request) {
+        validateRequest(request, "邮箱更新请求不能为空");
+        User currentUser = getCurrentUserOrThrow();
+
+        String rawPassword = StrUtil.trimToNull(request.getUserPassword());
+        String newEmail = StrUtil.trimToNull(request.getNewEmail());
+        String code = StrUtil.trimToNull(request.getEmailCode());
+
+        ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "密码不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(newEmail), ErrorCode.PARAMS_MISSING, "新邮箱不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_MISSING, "验证码不能为空");
+        ThrowUtils.throwIf(!Validator.isEmail(newEmail), ErrorCode.PARAMS_ERROR, "不支持的邮箱格式");
+        ThrowUtils.throwIf(StrUtil.equalsIgnoreCase(newEmail, currentUser.getUserEmail()), ErrorCode.PARAMS_ERROR, "新邮箱不能与当前邮箱相同");
+        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_EMAIL, newEmail, currentUser.getId()), ErrorCode.DATA_ALREADY_EXISTS, "邮箱已被占用");
+
+        verifyPassword(currentUser, rawPassword);
+        String redisKey = AuthConstants.buildEmailCodeKey(newEmail);
+        validateAndConsumeCode(redisKey, code, "邮箱验证码已过期");
+
+        currentUser.setUserEmail(newEmail);
+
+        boolean updated = updateById(currentUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新邮箱失败");
+        refreshUserContext(currentUser);
+        return Boolean.TRUE;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request) {
+        validateRequest(request, "手机号更新请求不能为空");
+        User currentUser = getCurrentUserOrThrow();
+
+        String rawPassword = StrUtil.trimToNull(request.getUserPassword());
+        String newPhone = StrUtil.trimToNull(request.getNewPhone());
+        String code = StrUtil.trimToNull(request.getPhoneCode());
+
+        ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "密码不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(newPhone), ErrorCode.PARAMS_MISSING, "新手机号不能为空");
+        ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_MISSING, "验证码不能为空");
+        ThrowUtils.throwIf(!Validator.isEmail(newPhone), ErrorCode.PARAMS_ERROR, "不支持的手机号格式");
+        ThrowUtils.throwIf(StrUtil.equals(newPhone, currentUser.getUserPhone()), ErrorCode.PARAMS_ERROR, "新手机号不能与当前手机号相同");
+        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_PHONE, newPhone, currentUser.getId()), ErrorCode.DATA_ALREADY_EXISTS, "手机号已被占用");
+
+        verifyPassword(currentUser, rawPassword);
+        String redisKey = AuthConstants.buildPhoneCodeKey(newPhone);
+        validateAndConsumeCode(redisKey, code, "短信验证码已过期");
+        currentUser.setUserPhone(newPhone);
+        boolean updated = updateById(currentUser);
+        ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新手机号失败");
+        refreshUserContext(currentUser);
+        return Boolean.TRUE;
+    }
+
+    @Override
+    public Boolean sendEmailCode(UserEmailGetCodeRequest request) {
+        String email = StrUtil.trimToNull(request.getEmail());
+        ThrowUtils.throwIf(StrUtil.isBlank(email), ErrorCode.PARAMS_MISSING, "邮箱不能为空");
+        ThrowUtils.throwIf(!Validator.isEmail(email), ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+        // 构建 Redis key
+        String redisKey = AuthConstants.buildEmailCodeKey(email);
+
+        // 生成随机 6 位验证码
+        String code = RandomUtil.randomNumbers(6);
+        try {
+            // 缓存验证码到 Redis，设置过期时间
+            stringRedisTemplate.opsForValue().set(redisKey, code, AuthConstants.EMAIL_CODE_EXPIRE_MINUTES, TimeUnit.MINUTES);
+            // 调用邮件服务发送验证码
+            mailService.sendEmailCode(email, code);
+            log.info("邮箱验证码已发送至：{}，验证码：{}", email, code);
+        } catch (MessagingException | IOException e) {
+            // 若发送失败则删除缓存，防止脏数据
+            Boolean delete = stringRedisTemplate.delete(redisKey);
+            log.error("发送邮箱验证码失败: {}", e.getMessage(), e);
+            ThrowUtils.throwIf(delete, ErrorCode.EMAIL_SEND_FAILED, "邮箱验证码发送失败，请稍后重试");
+        }
+        return Boolean.TRUE;
+    }
+
+    /**
+     * 判断指定字段值的用户是否已存在。
+     * <p>
+     * 该方法根据传入的列名与值，动态构建查询条件，用于判断数据库中是否存在对应记录。
+     * 常用于账号、邮箱、手机号等唯一性校验场景。
+     * 若传入 {@code excludeId}，则在查询时排除该 ID 对应的用户记录，
+     * 以避免在用户信息更新时与自身数据产生冲突。
+     * </p>
+     * <p><b>示例：</b></p>
+     * <pre>{@code
+     * {
+     * // 检查邮箱是否已被占用
+     * boolean exists = existsByColumn(UserFieldConstants.USER_EMAIL, "test@example.com", null);
+     * }
+     * }</pre>
+     * <p><b>示例：</b></p>
+     * <pre>{@code
+     * {
+     * // 更新用户信息时，排除自己
+     * boolean exists = existsByColumn(UserFieldConstants.USER_EMAIL, "test@example.com", 1001L);
+     * }
+     * }</pre>
+     *
+     * @param column    字段名（仅支持账号、邮箱、手机号等定义在 {@link UserFieldConstants} 中的字段）
+     * @param value     字段值，例如用户输入的账号、邮箱或手机号
+     * @param excludeId 需要排除的用户 ID（用于更新场景，若为新增操作则传入 {@code null}）
+     * @return 若存在相同字段值的记录，则返回 {@code true}；否则返回 {@code false}
+     * @throws IllegalArgumentException 当传入的字段名不受支持时抛出
+     */
+    private boolean existsByColumn(String column, String value, Long excludeId) {
+        // 构建基础查询条件：仅查询未逻辑删除的用户
+        QueryWrapper queryWrapper = QueryWrapper.create().where(User::getIsDelete).eq(0);
+
+        // 根据传入的列名动态拼接对应的字段查询条件
+        switch (column) {
+            case UserFieldConstants.USER_ACCOUNT ->
+                // 检查用户账号是否存在
+                    queryWrapper.and(User::getUserAccount).eq(value);
+            case UserFieldConstants.USER_EMAIL ->
+                // 检查邮箱是否存在
+                    queryWrapper.and(User::getUserEmail).eq(value);
+            case UserFieldConstants.USER_PHONE ->
+                // 检查手机号是否存在
+                    queryWrapper.and(User::getUserPhone).eq(value);
+            default ->
+                // 若传入了不支持的字段名，则抛出异常
+                    throw new IllegalArgumentException("Unsupported column: " + column);
+        }
+
+        // 若指定了 excludeId，则在查询时排除该用户
+        // 常用于“更新用户信息”时防止与自身数据重复
+        if (excludeId != null) {
+            queryWrapper.and(User::getId).ne(excludeId);
+        }
+
+        // 仅查询一条记录即可判断是否存在，提高性能
+        queryWrapper.limit(1);
+
+        // 执行查询：若能查到记录则返回 true，否则返回 false
+        return getOne(queryWrapper) != null;
+    }
+
+    /**
+     * 校验邮箱和手机号的格式与唯一性。
+     * <p>
+     * 该方法可用于新增或更新用户场景：
+     * <ul>
+     *     <li>当 {@code excludeId} 为 {@code null} 时，用于新增用户（不排除自身）。</li>
+     *     <li>当 {@code excludeId} 不为 {@code null} 时，用于更新用户（排除自身 ID）。</li>
+     * </ul>
+     * </p>
+     *
+     * @param email     邮箱地址，可为空
+     * @param phone     手机号，可为空
+     * @param excludeId 需要排除的用户 ID（更新场景使用；新增时传入 {@code null}）
+     */
+    private void validateEmailAndPhone(String email, String phone, Long excludeId) {
+        // ======== 邮箱校验 ========
+        if (StrUtil.isNotBlank(email)) {
+            // 格式校验
+            ThrowUtils.throwIf(!Validator.isEmail(email), ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
+            // 唯一性校验
+            ThrowUtils.throwIf(
+                    existsByColumn(UserFieldConstants.USER_EMAIL, email, excludeId),
+                    ErrorCode.DATA_ALREADY_EXISTS,
+                    "邮箱已被占用"
+            );
+        }
+
+        // ======== 手机号校验 ========
+        if (StrUtil.isNotBlank(phone)) {
+            // 格式校验
+            ThrowUtils.throwIf(!Validator.isMobile(phone), ErrorCode.PARAMS_ERROR, "手机号格式不正确");
+            // 唯一性校验
+            ThrowUtils.throwIf(
+                    existsByColumn(UserFieldConstants.USER_PHONE, phone, excludeId),
+                    ErrorCode.DATA_ALREADY_EXISTS,
+                    "手机号已被占用"
+            );
+        }
+    }
+
+
+    private User getCurrentUserOrThrow() {
+        User currentUser = UserContext.getUser();
+        ThrowUtils.throwIf(currentUser == null, ErrorCode.NOT_LOGIN_ERROR, "未登录或会话已失效");
+        return currentUser;
+    }
+
+    private void verifyPassword(User user, String rawPassword) {
+        String encrypted = DigestUtil.sha256Hex(rawPassword + user.getUserSalt());
+        ThrowUtils.throwIf(!StrUtil.equals(encrypted, user.getUserPassword()),
+                ErrorCode.PARAMS_ERROR, "密码不正确");
+    }
+
+    private void validateAndConsumeCode(String redisKey, String providedCode, String expiredMessage) {
+        String cachedCode = stringRedisTemplate.opsForValue().get(redisKey);
+        ThrowUtils.throwIf(StrUtil.isBlank(cachedCode), ErrorCode.LOGIN_EXPIRED, expiredMessage);
+        ThrowUtils.throwIf(!StrUtil.equals(cachedCode, providedCode), ErrorCode.PARAMS_ERROR, "验证码不正确");
+        stringRedisTemplate.delete(redisKey);
+    }
+
+    private void refreshUserContext(User currentUser) {
+        if (currentUser == null) {
+            return;
+        }
+        UserContext.setUser(currentUser);
     }
 
     // ===================== 邮箱验证码相关方法 =====================
@@ -167,14 +641,14 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String redisKey = AuthConstants.buildEmailCodeKey(email);
 
         // 将验证码存储到Redis，设置5分钟过期时间
-        redisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(AuthConstants.EMAIL_CODE_EXPIRE_MINUTES));
+        stringRedisTemplate.opsForValue().set(redisKey, code, Duration.ofMinutes(AuthConstants.EMAIL_CODE_EXPIRE_MINUTES));
 
         try {
             // 发送验证码邮件
             mailService.sendEmailCode(email, code);
         } catch (Exception ex) {
             // 如果邮件发送失败，删除Redis中的验证码
-            redisTemplate.delete(redisKey);
+            stringRedisTemplate.delete(redisKey);
             log.error("发送登录验证码失败: {}", ex.getMessage(), ex);
             throw new BusinessException(ErrorCode.EMAIL_SEND_FAILED, "发送验证码失败，请稍后重试");
         }
@@ -205,7 +679,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String refreshTokenKey = AuthConstants.buildRefreshTokenKey(userId);
 
         // 从Redis获取刷新令牌
-        String refreshToken = redisTemplate.opsForValue().get(refreshTokenKey);
+        String refreshToken = stringRedisTemplate.opsForValue().get(refreshTokenKey);
 
         // 验证刷新令牌是否存在且有效
         ThrowUtils.throwIf(StrUtil.isBlank(refreshToken) || !jwtUtils.isTokenValid(refreshToken),
@@ -266,7 +740,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String refreshToken = jwtUtils.generateRefreshToken(userId, role);
 
         // 将刷新令牌存储到Redis
-        redisTemplate.opsForValue().set(AuthConstants.buildRefreshTokenKey(userId), refreshToken, jwtUtils.getRefreshTokenExpireDuration());
+        stringRedisTemplate.opsForValue().set(AuthConstants.buildRefreshTokenKey(userId), refreshToken, jwtUtils.getRefreshTokenExpireDuration());
 
         // 组装返回结果
         UserVO vo = new UserVO();
@@ -287,7 +761,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         String ipAddress = IpUtils.getClientIp(httpServletRequest);
 
         // 更新数据库中的登录信息
-        boolean success = UpdateChain.of(User.class)
+        boolean success = UpdateChain.of(userMapper)
                 .set(User::getLastLoginTime, now)
                 .set(User::getLastLoginIp, ipAddress)
                 .where(User::getId).eq(user.getId())
@@ -338,7 +812,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
 
-
     /**
      * 验证请求对象是否为空。
      *
@@ -363,6 +836,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
             return Long.valueOf(subject);
         } catch (NumberFormatException ex) {
             throw new BusinessException(ErrorCode.TOKEN_INVALID, "非法的用户标识");
+        }
+    }
+
+    /**
+     * 设置用户的 VIP 开始和结束时间。
+     * <p>
+     * 当用户被标记为 VIP 时，会自动设置当前时间为开始时间，
+     * 并通过 {@link VipTimeUtils#calculateVipEndTime(LocalDateTime)} 计算到期时间。
+     * 若用户不是 VIP，则不修改任何时间字段。
+     * </p>
+     *
+     * @param user 用户实体对象，不能为空
+     */
+    private void applyVipTimeIfNeeded(Integer isVip, User user) {
+        // 判空防御
+        if (user == null) {
+            return;
+        }
+        // 若用户状态为 VIP，则设置起止时间
+        if (VipStatusEnum.VIP.getValue().equals(isVip)) {
+            LocalDateTime now = LocalDateTime.now();
+            user.setVipStartTime(now);
+            user.setVipEndTime(VipTimeUtils.calculateVipEndTime(now));
         }
     }
 }

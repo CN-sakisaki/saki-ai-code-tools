@@ -8,7 +8,10 @@ import io.jsonwebtoken.Claims;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
-import org.aspectj.lang.annotation.*;
+import org.aspectj.lang.annotation.Around;
+import org.aspectj.lang.annotation.Aspect;
+import org.aspectj.lang.annotation.Pointcut;
+import org.springframework.core.annotation.Order;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
@@ -27,6 +30,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Slf4j
 @Aspect
 @Component
+@Order(1)
 public class JwtUserAspect {
 
     private final UserMapper userMapper;
@@ -50,8 +54,12 @@ public class JwtUserAspect {
      * 匹配 com.saki.sakiaicodetoolsbackend.controller 包及其子包下所有类的所有方法。
      * </p>
      */
-    @Pointcut("execution(* com.saki.sakiaicodetoolsbackend.controller..*(..))")
-    public void controllerMethods() {}
+    @Pointcut("execution(* com.saki.sakiaicodetoolsbackend.controller..*(..)) " +
+            "&& !execution(* com.saki.sakiaicodetoolsbackend.controller.UserController.login(..)) " +
+            "&& !execution(* com.saki.sakiaicodetoolsbackend.controller.UserController.register(..))" +
+            "&& !execution(* com.saki.sakiaicodetoolsbackend.controller.UserController.sendEmailLoginCode(..)) ")
+    public void controllerMethods() {
+    }
 
     /**
      * 环绕通知：处理 JWT Token 解析和用户上下文管理。
