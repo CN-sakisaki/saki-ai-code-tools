@@ -1,7 +1,5 @@
 package com.saki.sakiaicodetoolsbackend.constant;
 
-import com.saki.sakiaicodetoolsbackend.model.enums.UserRoleEnum;
-
 /**
  * 用户通用常量。
  * <p>
@@ -12,13 +10,18 @@ import com.saki.sakiaicodetoolsbackend.model.enums.UserRoleEnum;
  * @version 1.0
  * @since 2025-10-19
  */
-public final class UserConstant {
+public final class UserRoleConstant {
 
     /**
      * 管理员角色标识。
      */
-    public static final String ADMIN_ROLE = UserRoleEnum.ADMIN.getValue();
+    public static final String ADMIN_ROLE = "admin";
 
-    private UserConstant() {
+    /**
+     * 用户角色标识
+     */
+    public static final String USER_ROLE = "user";
+
+    private UserRoleConstant() {
     }
 }

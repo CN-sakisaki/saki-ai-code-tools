@@ -1,7 +1,7 @@
 package com.saki.sakiaicodetoolsbackend.service;
 
-import com.mybatisflex.core.service.IService;
 import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.service.IService;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
@@ -9,6 +9,7 @@ import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
@@ -95,6 +96,14 @@ public interface UserService extends IService<User> {
     User getUserDetail(Long id);
 
     /**
+     * 根据主键获取用户详情。
+     *
+     * @param id 用户ID
+     * @return 用户VO详情
+     */
+    UserVO getUserVODetail(Long id);
+
+    /**
      * 更新当前用户的基础资料。
      *
      * @param request 更新请求
@@ -117,4 +126,12 @@ public interface UserService extends IService<User> {
      * @return 是否更新成功
      */
     Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request);
+
+    /**
+     * 根据邮箱获取验证吗。
+     *
+     * @param request 获取请求
+     * @return 是否获取成功
+     */
+    Boolean sendEmailCode(UserEmailGetCodeRequest request);
 }
