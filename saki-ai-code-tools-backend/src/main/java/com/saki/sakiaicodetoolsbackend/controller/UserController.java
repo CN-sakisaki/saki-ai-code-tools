@@ -4,7 +4,7 @@ import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.annotation.AuthCheck;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
-import com.saki.sakiaicodetoolsbackend.constant.UserConstant;
+import com.saki.sakiaicodetoolsbackend.constant.UserRoleConstant;
 import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
@@ -15,23 +15,19 @@ import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.UserService;
+import com.saki.sakiaicodetoolsbackend.service.mail.MailService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 /**
  * 用户表 控制层。
@@ -89,7 +85,7 @@ public class UserController {
      * 管理员新增用户。
      */
     @PostMapping("/admin/add")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员创建用户")
     public BaseResponse<Long> addUser(@RequestBody UserAddRequest request) {
         return ResultUtils.success(userService.createUser(request));
@@ -99,7 +95,7 @@ public class UserController {
      * 管理员删除用户。
      */
     @PostMapping("/admin/delete")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员删除用户")
     public BaseResponse<Boolean> deleteUsers(@RequestBody UserDeleteRequest request) {
         return ResultUtils.success(userService.deleteUsers(request));
@@ -109,7 +105,7 @@ public class UserController {
      * 管理员更新用户信息。
      */
     @PutMapping("/admin/update")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员更新用户信息")
     public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest request) {
         return ResultUtils.success(userService.updateUser(request));
@@ -119,7 +115,7 @@ public class UserController {
      * 管理员分页查询用户列表。
      */
     @PostMapping("/admin/list/page")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员分页获取用户列表")
     public BaseResponse<Page<User>> listUsersByPage(@RequestBody UserQueryRequest request) {
         return ResultUtils.success(userService.listUsersByPage(request));
@@ -129,10 +125,20 @@ public class UserController {
      * 管理员根据 ID 查询用户详情。
      */
     @GetMapping("/admin/{id}")
-    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员根据 ID 获取用户详情")
-    public BaseResponse<User> getUserById(@PathVariable Long id) {
+    public BaseResponse<User> baseAdminGetUserById(@PathVariable Long id) {
         return ResultUtils.success(userService.getUserDetail(id));
+    }
+
+    /**
+     * 用户根据 ID 查询用户详情。
+     */
+    @GetMapping("/user/{id}")
+    @AuthCheck(mustRole = UserRoleConstant.USER_ROLE)
+    @Operation(description = "用户根据 ID 获取用户详情")
+    public BaseResponse<UserVO> baseUserGetUserById(@PathVariable Long id) {
+        return ResultUtils.success(userService.getUserVODetail(id));
     }
 
     /**
@@ -160,6 +166,21 @@ public class UserController {
     @Operation(description = "更新个人手机号")
     public BaseResponse<Boolean> updatePhone(@RequestBody UserPhoneUpdateRequest request) {
         return ResultUtils.success(userService.updateCurrentUserPhone(request));
+    }
+
+    /**
+     * 邮箱验证码发送接口。
+     * <p>
+     * 用户输入邮箱后，系统生成随机验证码，
+     * 通过 {@link MailService} 发送邮件，
+     * 并将验证码缓存至 Redis，设置有效期。
+     * </p>
+     * @param request 用户输入的邮箱地址
+     * @return 通用响应结果
+     */
+    @PostMapping("/sendEmailCode")
+    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailGetCodeRequest request) {
+        return ResultUtils.success(userService.sendEmailCode(request));
     }
 
 }
