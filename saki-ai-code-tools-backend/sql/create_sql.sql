@@ -12,10 +12,11 @@ create table user
         primary key,
     user_account    varchar(256)                           not null comment '用户账号',
     user_password   varchar(256)                           not null comment '账号密码',
+    user_name       varchar(256)                           not null comment '用户名',
     user_email      varchar(256)                           null comment '用户邮箱',
     user_phone      varchar(256)                           null comment '用户手机号',
-    user_Avatar     varchar(512)                           null comment '用户头像',
-    user_profile    varchar(512)                           null comment '用户简介',
+    user_avatar     varchar(512)                           not null comment '用户头像',
+    user_profile    varchar(512)                           not null comment '用户简介',
     user_role       varchar(256) default 'user'            not null comment '用户角色（user/admin）',
     user_status     tinyint      default 0                 not null comment '用户状态（0-禁用，1-状态）',
     is_vip          tinyint      default 0                 not null comment '是否为会员（0-普通会员，1-vip 会员）',
@@ -29,14 +30,14 @@ create table user
     update_time     datetime     default CURRENT_TIMESTAMP not null comment '更新时间',
     user_salt       varchar(16)                            null comment '盐值',
     is_delete       tinyint      default 0                 not null comment '逻辑删除（0-未删除，1-已删除）',
-    constraint uk_user_account
-        unique (user_account),
-    constraint uk_user_email
-        unique (user_email),
-    constraint uk_user_phone
-        unique (user_phone)
+    constraint uk_user_account_isdelete
+        unique (user_account, is_delete),
+    constraint uk_user_email_isdelete
+        unique (user_email, is_delete),
+    constraint uk_user_phone_isdelete
+        unique (user_phone, is_delete)
 )
-    comment '用户表' engine = InnoDB default charset = utf8mb4 collate = utf8mb4_unicode_ci;
+    comment '用户表' collate = utf8mb4_unicode_ci;
 
 create index idx_is_vip
     on user (is_vip);
@@ -46,4 +47,5 @@ create index idx_user_role
 
 create index idx_user_status
     on user (user_status);
+
 

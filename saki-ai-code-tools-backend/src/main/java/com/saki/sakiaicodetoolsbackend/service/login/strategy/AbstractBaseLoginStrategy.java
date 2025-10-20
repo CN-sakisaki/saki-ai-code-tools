@@ -66,7 +66,10 @@ public abstract class AbstractBaseLoginStrategy implements LoginStrategy {
         QueryWrapper queryWrapper = QueryWrapper.create()
                 .select()
                 .from(USER_TABLE)
+                // 查询未逻辑删除的用户
                 .where(column + " = ?", value)
+                // 再匹配具体字段
+                .where(User::getIsDelete).eq(0)
                 .limit(1);
         return userMapper.selectOneByQuery(queryWrapper);
     }
