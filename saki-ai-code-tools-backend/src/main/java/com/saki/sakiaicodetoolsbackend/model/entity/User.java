@@ -4,17 +4,16 @@ import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import java.io.Serializable;
-import java.time.LocalDateTime;
-
-import java.io.Serial;
-
 import com.mybatisflex.core.keygen.KeyGenerators;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * 用户表 实体类。
@@ -91,7 +90,7 @@ public class User implements Serializable {
     /**
      * 用户状态（0-禁用，1-状态）
      */
-    @Schema(description = "用户状态（0-禁用，1-状态）")
+    @Schema(description = "用户状态（0-禁用，1-正常）")
     private Integer userStatus;
 
     /**

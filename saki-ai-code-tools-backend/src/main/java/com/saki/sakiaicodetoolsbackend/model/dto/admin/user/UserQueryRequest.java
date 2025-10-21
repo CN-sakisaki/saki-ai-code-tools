@@ -54,9 +54,9 @@ public class UserQueryRequest extends PageRequest implements Serializable {
     private String userRole;
 
     /**
-     * 用户状态（0-禁用，1-状态）
+     * 用户状态（0-禁用，1-正常）
      */
-    @Schema(description = "用户状态（0-禁用，1-状态）")
+    @Schema(description = "用户状态（0-禁用，1-正常）")
     private Integer userStatus;
 
     /**
