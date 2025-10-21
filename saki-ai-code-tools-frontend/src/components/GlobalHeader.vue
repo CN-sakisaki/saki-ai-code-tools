@@ -112,8 +112,8 @@ const handleMenuClick = ({ key }: { key: string }) => {
 }
 
 .global-header__logo {
-  width: 44px;
-  height: 44px;
+  width: 80px;
+  height: 80px;
   object-fit: contain;
 }
 
