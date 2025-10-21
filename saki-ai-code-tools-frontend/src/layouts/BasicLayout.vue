@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { message } from 'ant-design-vue'
 
 import GlobalFooter from '@/components/GlobalFooter.vue'
-import GlobalHeader, { type HeaderUserProfile } from '@/components/GlobalHeader.vue'
+import GlobalHeader from '@/components/GlobalHeader.vue'
 import router from '@/router'
+import { useLoginUserStore } from '@/stores/loginUser'
 
 // 自动生成菜单项
 const menuItems = router.options.routes
@@ -30,10 +33,41 @@ router.afterEach((to) => {
   selectedKeys.value = [to.path]
 })
 
-const currentUser = ref<HeaderUserProfile | null>(null)
+const loginUserStore = useLoginUserStore()
+const { currentUser } = storeToRefs(loginUserStore)
+
+const headerUser = computed(() => {
+  if (!currentUser.value) {
+    return null
+  }
+  const name =
+    currentUser.value.userAccount ||
+    currentUser.value.userEmail ||
+    currentUser.value.userPhone ||
+    currentUser.value.userProfile ||
+    '用户'
+
+  return {
+    name,
+    avatar: currentUser.value.userAvatar || undefined,
+  }
+})
 
 const handleAuth = () => {
-  console.info('Trigger login/register flow')
+  router.push({
+    path: '/user/login',
+    query: { redirect: route.fullPath },
+  })
+}
+
+const handleProfile = () => {
+  router.push('/user/userManage')
+}
+
+const handleLogout = () => {
+  loginUserStore.logout()
+  message.success('已注销登录')
+  router.push('/user/login')
 }
 </script>
 
@@ -42,8 +76,10 @@ const handleAuth = () => {
     <GlobalHeader
       :menu-items="menuItems"
       v-model:modelValue="selectedKeys"
-      :user="currentUser"
+      :user="headerUser"
       @login="handleAuth"
+      @profile="handleProfile"
+      @logout="handleLogout"
     />
     <a-layout-content class="basic-layout__content">
       <RouterView />
