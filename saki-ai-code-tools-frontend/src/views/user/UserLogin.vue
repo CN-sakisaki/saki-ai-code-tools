@@ -66,7 +66,7 @@ const categoryForTab: Record<LoginTabKey, LoginCategoryKey> = {
 }
 
 const categoryOptions: { label: string; value: LoginCategoryKey }[] = [
-  { label: '密码登录', value: 'password' },
+  { label: '账号密码登录', value: 'password' },
   { label: '验证码登录', value: 'code' },
 ]
 
@@ -328,15 +328,9 @@ onBeforeUnmount(() => {
 
         <div class="auth-card__switcher">
           <a-segmented
-            v-model:value="activeCategory"
-            :options="categoryOptions"
-            size="large"
-            class="auth-card__segmented auth-card__segmented--category"
-          />
-          <a-segmented
             v-model:value="activeKey"
             :options="subOptions"
-            class="auth-card__segmented"
+            class="auth-card__segmented-main"
           />
         </div>
 
@@ -535,7 +529,15 @@ onBeforeUnmount(() => {
           </template>
 
           <div class="auth-card__actions">
-            <RouterLink class="auth-card__link" to="/user/register">没有账号？立即注册</RouterLink>
+            <div class="auth-card__actions-top">
+              <a-segmented
+                v-model:value="activeCategory"
+                :options="categoryOptions"
+                size="large"
+                class="auth-card__segmented-category"
+              />
+              <RouterLink class="auth-card__link" to="/user/register">没有账号？立即注册</RouterLink>
+            </div>
             <a-button :loading="loading" block html-type="submit" size="large" type="primary">
               登录
             </a-button>
@@ -619,12 +621,13 @@ onBeforeUnmount(() => {
 
 .auth-card__switcher {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  justify-content: center;
 }
 
-.auth-card__segmented {
+.auth-card__segmented-main {
   width: 100%;
+  max-width: 320px;
+  margin: 0 auto;
 }
 
 .auth-card__description {
@@ -657,8 +660,25 @@ onBeforeUnmount(() => {
 .auth-card__actions {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
   margin-top: 16px;
+}
+
+.auth-card__actions-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.auth-card__segmented-category {
+  min-width: 220px;
+  flex-shrink: 0;
+}
+
+.auth-card__actions-top .auth-card__link {
+  align-self: center;
+  margin-left: auto;
 }
 
 .auth-card__link {
@@ -684,7 +704,6 @@ onBeforeUnmount(() => {
 }
 
 :deep(.ant-segmented) {
-  width: 100%;
   background: rgba(255, 255, 255, 0.08);
   border-radius: 14px;
   padding: 4px;
