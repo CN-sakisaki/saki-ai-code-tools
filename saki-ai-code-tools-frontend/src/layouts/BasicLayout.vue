@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
@@ -74,12 +74,12 @@ const handleLogout = () => {
 <template>
   <a-layout class="basic-layout">
     <GlobalHeader
-      :menu-items="menuItems"
       v-model:modelValue="selectedKeys"
+      :menu-items="menuItems"
       :user="headerUser"
       @login="handleAuth"
-      @profile="handleProfile"
       @logout="handleLogout"
+      @profile="handleProfile"
     />
     <a-layout-content class="basic-layout__content">
       <RouterView />

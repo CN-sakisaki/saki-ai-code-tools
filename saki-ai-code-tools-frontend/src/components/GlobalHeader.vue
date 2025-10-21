@@ -1,4 +1,4 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { RouterLink } from 'vue-router'
 
 import logo from '@/assets/logo.svg'
@@ -49,10 +49,10 @@ const handleMenuClick = ({ key }: { key: string }) => {
     </RouterLink>
 
     <a-menu
+      :selectedKeys="modelValue"
       class="global-header__menu"
       mode="horizontal"
       theme="light"
-      :selectedKeys="modelValue"
       @select="handleSelect"
     >
       <a-menu-item v-for="item in menuItems" :key="item.path">

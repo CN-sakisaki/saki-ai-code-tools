@@ -1,8 +1,8 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { onBeforeUnmount, reactive, ref } from 'vue'
 import type { FormInstance } from 'ant-design-vue'
-import type { Rule } from 'ant-design-vue/es/form'
 import { message } from 'ant-design-vue'
+import type { Rule } from 'ant-design-vue/es/form'
 import { useRoute, useRouter } from 'vue-router'
 
 import { login, sendEmailLoginCode } from '@/api/userController'
@@ -272,7 +272,7 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="login-page">
-    <a-card class="login-card" bordered="false">
+    <a-card bordered="false" class="login-card">
       <div class="login-card__header">
         <div>
           <h1 class="login-card__title">欢迎登录</h1>
@@ -287,15 +287,18 @@ onBeforeUnmount(() => {
             :ref="setFormRef(tab.key)"
             :model="loginForms[tab.key]"
             :rules="rules[tab.key]"
-            layout="vertical"
             autocomplete="off"
+            layout="vertical"
             @finish="() => handleSubmit(tab.key)"
           >
             <template v-if="tab.key === 'accountPassword'">
-              <a-form-item name="userAccount" label="账号">
-                <a-input v-model:value="loginForms.accountPassword.userAccount" placeholder="请输入账号" />
+              <a-form-item label="账号" name="userAccount">
+                <a-input
+                  v-model:value="loginForms.accountPassword.userAccount"
+                  placeholder="请输入账号"
+                />
               </a-form-item>
-              <a-form-item name="userPassword" label="密码">
+              <a-form-item label="密码" name="userPassword">
                 <a-input-password
                   v-model:value="loginForms.accountPassword.userPassword"
                   placeholder="请输入密码"
@@ -304,20 +307,20 @@ onBeforeUnmount(() => {
             </template>
 
             <template v-else-if="tab.key === 'emailCode'">
-              <a-form-item name="userEmail" label="邮箱">
+              <a-form-item label="邮箱" name="userEmail">
                 <a-input v-model:value="loginForms.emailCode.userEmail" placeholder="请输入邮箱" />
               </a-form-item>
-              <a-form-item name="loginCode" label="验证码">
+              <a-form-item label="验证码" name="loginCode">
                 <a-input-group compact>
                   <a-input
                     v-model:value="loginForms.emailCode.loginCode"
-                    placeholder="请输入验证码"
                     class="login-card__code-input"
+                    placeholder="请输入验证码"
                   />
                   <a-button
-                    type="link"
-                    class="login-card__code-button"
                     :disabled="emailCountdown > 0"
+                    class="login-card__code-button"
+                    type="link"
                     @click="sendEmailCode"
                   >
                     {{ emailCountdown > 0 ? `${emailCountdown}s后重试` : '发送验证码' }}
@@ -327,10 +330,13 @@ onBeforeUnmount(() => {
             </template>
 
             <template v-else-if="tab.key === 'phonePassword'">
-              <a-form-item name="userPhone" label="手机号">
-                <a-input v-model:value="loginForms.phonePassword.userPhone" placeholder="请输入手机号" />
+              <a-form-item label="手机号" name="userPhone">
+                <a-input
+                  v-model:value="loginForms.phonePassword.userPhone"
+                  placeholder="请输入手机号"
+                />
               </a-form-item>
-              <a-form-item name="userPassword" label="密码">
+              <a-form-item label="密码" name="userPassword">
                 <a-input-password
                   v-model:value="loginForms.phonePassword.userPassword"
                   placeholder="请输入密码"
@@ -339,20 +345,23 @@ onBeforeUnmount(() => {
             </template>
 
             <template v-else>
-              <a-form-item name="userPhone" label="手机号">
-                <a-input v-model:value="loginForms.phoneCode.userPhone" placeholder="请输入手机号" />
+              <a-form-item label="手机号" name="userPhone">
+                <a-input
+                  v-model:value="loginForms.phoneCode.userPhone"
+                  placeholder="请输入手机号"
+                />
               </a-form-item>
-              <a-form-item name="loginCode" label="验证码">
+              <a-form-item label="验证码" name="loginCode">
                 <a-input-group compact>
                   <a-input
                     v-model:value="loginForms.phoneCode.loginCode"
-                    placeholder="请输入验证码"
                     class="login-card__code-input"
+                    placeholder="请输入验证码"
                   />
                   <a-button
-                    type="link"
-                    class="login-card__code-button"
                     :disabled="phoneCountdown > 0"
+                    class="login-card__code-button"
+                    type="link"
                     @click="sendPhoneCode"
                   >
                     {{ phoneCountdown > 0 ? `${phoneCountdown}s后重试` : '发送验证码' }}
@@ -362,8 +371,10 @@ onBeforeUnmount(() => {
             </template>
 
             <div class="login-card__actions">
-              <RouterLink class="login-card__link" to="/user/register">没有账号？立即注册</RouterLink>
-              <a-button type="primary" html-type="submit" size="large" block :loading="loading">
+              <RouterLink class="login-card__link" to="/user/register"
+                >没有账号？立即注册</RouterLink
+              >
+              <a-button :loading="loading" block html-type="submit" size="large" type="primary">
                 登录
               </a-button>
             </div>
