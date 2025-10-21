@@ -1,12 +1,17 @@
 <script lang="ts" setup>
+import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
 
 import logo from '@/assets/logo.png'
+import ACCESS_ENUM, { type AccessEnum } from '@/access/accessEnum'
+import checkAccess from '@/access/checkAccess'
 
 export interface HeaderMenuItem {
   key: string
   label: string
   path: string
+  access?: AccessEnum
+  hideInMenu?: boolean
 }
 
 export interface HeaderUserProfile {
@@ -18,6 +23,7 @@ const props = defineProps<{
   menuItems: HeaderMenuItem[]
   modelValue?: string[] // v-model 语法糖
   user?: HeaderUserProfile | null
+  currentUser?: API.UserVO | null
 }>()
 
 const emit = defineEmits<{
@@ -26,6 +32,16 @@ const emit = defineEmits<{
   (event: 'profile'): void
   (event: 'logout'): void
 }>()
+
+const visibleMenuItems = computed(() =>
+  props.menuItems.filter((item) => {
+    if (item.hideInMenu) {
+      return false
+    }
+    const needAccess = item.access ?? ACCESS_ENUM.NOT_LOGIN
+    return checkAccess(props.currentUser, needAccess)
+  }),
+)
 
 // 当点击菜单时，自动更新 v-model
 const handleSelect = (info: { key: string }) => {
@@ -55,7 +71,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
       theme="light"
       @select="handleSelect"
     >
-      <a-menu-item v-for="item in menuItems" :key="item.path">
+      <a-menu-item v-for="item in visibleMenuItems" :key="item.path">
         <RouterLink :to="item.path">{{ item.label }}</RouterLink>
       </a-menu-item>
     </a-menu>
