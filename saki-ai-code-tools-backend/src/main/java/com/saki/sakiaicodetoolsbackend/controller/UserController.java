@@ -36,7 +36,7 @@ import org.springframework.web.bind.annotation.*;
  * @since 2025-10-15
  */
 @RestController
-@Tag(name = "用户表接口")
+@Tag(name = "UserController", description = "用户表接口")
 @RequestMapping("/user")
 public class UserController {
 
@@ -134,7 +134,7 @@ public class UserController {
     /**
      * 用户根据 ID 查询用户详情。
      */
-    @GetMapping("/user/{id}")
+    @GetMapping("/{id}")
     @AuthCheck(mustRole = UserRoleConstant.USER_ROLE)
     @Operation(description = "用户根据 ID 获取用户详情")
     public BaseResponse<UserVO> baseUserGetUserById(@PathVariable Long id) {

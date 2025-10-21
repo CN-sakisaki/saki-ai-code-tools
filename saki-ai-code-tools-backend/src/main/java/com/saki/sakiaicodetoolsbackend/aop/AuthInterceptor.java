@@ -48,7 +48,7 @@ public class AuthInterceptor {
         // 要求必须有管理员权限，但用户没有管理员权限，拒绝
         ThrowUtils.throwIf(UserRoleEnum.ADMIN.equals(mustRoleEnum) && !UserRoleEnum.ADMIN.equals(userRoleEnum), ErrorCode.NO_AUTH_ERROR, "管理员接口，用户无权访问");
         // 要求必须有用户权限，拒绝
-        ThrowUtils.throwIf(UserRoleEnum.USER.equals(mustRoleEnum) && !UserRoleEnum.USER.equals(userRoleEnum), ErrorCode.NOT_LOGIN_ERROR);
+        ThrowUtils.throwIf(UserRoleEnum.USER.equals(mustRoleEnum) && !UserRoleEnum.USER.equals(userRoleEnum), ErrorCode.NOT_LOGIN_ERROR, "未登录或未检测到权限");
         // 通过权限校验，放行
         return joinPoint.proceed();
     }
