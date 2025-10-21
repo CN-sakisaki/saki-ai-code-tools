@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { RouterLink } from 'vue-router'
+
 import logo from '@/assets/logo.svg'
 
 export interface HeaderMenuItem {
@@ -22,11 +23,21 @@ const props = defineProps<{
 const emit = defineEmits<{
   (event: 'update:modelValue', val: string[]): void
   (event: 'login'): void
+  (event: 'profile'): void
+  (event: 'logout'): void
 }>()
 
 // 当点击菜单时，自动更新 v-model
 const handleSelect = (info: { key: string }) => {
   emit('update:modelValue', [info.key])
+}
+
+const handleMenuClick = ({ key }: { key: string }) => {
+  if (key === 'profile') {
+    emit('profile')
+  } else if (key === 'logout') {
+    emit('logout')
+  }
 }
 </script>
 
@@ -51,10 +62,21 @@ const handleSelect = (info: { key: string }) => {
 
     <div class="global-header__actions">
       <template v-if="user">
-        <a-avatar :src="user.avatar" size="large">
-          <span v-if="!user.avatar">{{ user.name.charAt(0).toUpperCase() }}</span>
-        </a-avatar>
-        <span>{{ user.name }}</span>
+        <a-dropdown placement="bottomRight" trigger="['click']">
+          <a-space class="global-header__profile" size="small">
+            <a-avatar :src="user.avatar" size="large">
+              <span v-if="!user.avatar">{{ user.name.charAt(0).toUpperCase() }}</span>
+            </a-avatar>
+            <span class="global-header__username">{{ user.name }}</span>
+          </a-space>
+          <template #overlay>
+            <a-menu @click="handleMenuClick">
+              <a-menu-item key="profile">个人中心</a-menu-item>
+              <a-menu-divider />
+              <a-menu-item key="logout">注销</a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
       </template>
       <a-button v-else type="primary" @click="$emit('login')">登录/注册</a-button>
     </div>
@@ -105,6 +127,13 @@ const handleSelect = (info: { key: string }) => {
   align-items: center;
   gap: 12px;
   white-space: nowrap;
+}
+
+.global-header__profile {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
 }
 
 .global-header__username {

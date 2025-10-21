@@ -1,5 +1,7 @@
-import axios from 'axios'
+import axios, { type AxiosRequestHeaders } from 'axios'
 import { message } from 'ant-design-vue'
+
+import { getAccessToken } from '@/utils/auth'
 
 // 创建 Axios 实例
 const appAxios = axios.create({
@@ -11,7 +13,12 @@ const appAxios = axios.create({
 // 全局请求拦截器
 appAxios.interceptors.request.use(
   function (config) {
-    // Do something before utils is sent
+    const token = getAccessToken()
+    if (token) {
+      const headers = (config.headers || {}) as AxiosRequestHeaders
+      headers.Authorization = `Bearer ${token}`
+      config.headers = headers
+    }
     return config
   },
   function (error) {
