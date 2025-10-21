@@ -535,21 +535,15 @@ onBeforeUnmount(() => {
                 <button
                   type="button"
                   class="auth-card__category-button"
-                  :class="{ 'is-active': activeCategory === 'password' }"
-                  @click="switchCategory('password')"
+                  @click="switchCategory(activeCategory === 'password' ? 'code' : 'password')"
                 >
-                  账号密码登录&lt;&lt;
-                </button>
-                <button
-                  type="button"
-                  class="auth-card__category-button"
-                  :class="{ 'is-active': activeCategory === 'code' }"
-                  @click="switchCategory('code')"
-                >
-                  验证码登录&lt;&lt;
+                  {{ activeCategory === 'password' ? '验证码登录 <<' : '账号密码登录 <<' }}
                 </button>
               </div>
-              <RouterLink class="auth-card__link" to="/user/register">没有账号？立即注册</RouterLink>
+
+              <RouterLink class="auth-card__link" to="/user/register"
+                >没有账号？立即注册</RouterLink
+              >
             </div>
             <a-button :loading="loading" block html-type="submit" size="large" type="primary">
               登录
@@ -560,7 +554,6 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .auth-page {
@@ -582,7 +575,12 @@ onBeforeUnmount(() => {
 .auth-page__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(22, 24, 61, 0.85) 0%, rgba(14, 11, 40, 0.7) 45%, rgba(6, 4, 24, 0.82) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(22, 24, 61, 0.85) 0%,
+    rgba(14, 11, 40, 0.7) 45%,
+    rgba(6, 4, 24, 0.82) 100%
+  );
 }
 
 .auth-page__content {
@@ -619,8 +617,8 @@ onBeforeUnmount(() => {
 }
 
 .auth-card__brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
 }
 
@@ -638,6 +636,7 @@ onBeforeUnmount(() => {
 }
 
 .auth-card__segmented-main {
+  background: #7c7a7a;
   width: 100%;
   max-width: 320px;
   margin: 0 auto;
@@ -733,8 +732,8 @@ onBeforeUnmount(() => {
 
 :deep(.auth-card__segmented-main .ant-segmented) {
   width: 100%;
-  background: rgba(255, 255, 255, 0.12);
-  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 14px;
   padding: 4px;
   color: rgba(255, 255, 255, 0.75);
@@ -760,7 +759,7 @@ onBeforeUnmount(() => {
 }
 
 :deep(.auth-card__segmented-main .ant-segmented-item-selected .ant-segmented-item-label) {
-  color: #ffffff;
+  color: #000000;
 }
 
 :deep(.ant-form-item-label > label) {
@@ -837,8 +836,8 @@ onBeforeUnmount(() => {
   }
 
   .auth-card__brand-logo {
-    width: 48px;
-    height: 48px;
+    width: 100px;
+    height: 100px;
   }
 
   .auth-card__code-row {
@@ -851,4 +850,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
