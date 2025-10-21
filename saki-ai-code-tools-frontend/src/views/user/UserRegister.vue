@@ -1,8 +1,8 @@
-<script setup lang="ts">
+<script lang="ts" setup>
 import { reactive, ref } from 'vue'
 import type { FormInstance } from 'ant-design-vue'
-import type { Rule } from 'ant-design-vue/es/form'
 import { message } from 'ant-design-vue'
+import type { Rule } from 'ant-design-vue/es/form'
 import { useRouter } from 'vue-router'
 
 import { register } from '@/api/userController'
@@ -91,7 +91,7 @@ const handleSubmit = async () => {
 
 <template>
   <div class="register-page">
-    <a-card class="register-card" bordered="false">
+    <a-card bordered="false" class="register-card">
       <div class="register-card__header">
         <div>
           <h1 class="register-card__title">创建新账户</h1>
@@ -103,26 +103,29 @@ const handleSubmit = async () => {
         ref="formRef"
         :model="formState"
         :rules="rules"
-        layout="vertical"
         autocomplete="off"
+        layout="vertical"
         @finish="handleSubmit"
       >
-        <a-form-item name="userAccount" label="账号">
+        <a-form-item label="账号" name="userAccount">
           <a-input v-model:value="formState.userAccount" placeholder="请输入账号" />
         </a-form-item>
-        <a-form-item name="userPassword" label="密码">
+        <a-form-item label="密码" name="userPassword">
           <a-input-password v-model:value="formState.userPassword" placeholder="请输入密码" />
         </a-form-item>
-        <a-form-item name="confirmPassword" label="确认密码">
-          <a-input-password v-model:value="formState.confirmPassword" placeholder="请再次输入密码" />
+        <a-form-item label="确认密码" name="confirmPassword">
+          <a-input-password
+            v-model:value="formState.confirmPassword"
+            placeholder="请再次输入密码"
+          />
         </a-form-item>
-        <a-form-item name="inviteCode" label="邀请码（可选）">
+        <a-form-item label="邀请码（可选）" name="inviteCode">
           <a-input v-model:value="formState.inviteCode" placeholder="如有邀请码，请输入" />
         </a-form-item>
 
         <div class="register-card__actions">
           <RouterLink class="register-card__link" to="/user/login">已有账号？立即登录</RouterLink>
-          <a-button type="primary" html-type="submit" size="large" block :loading="loading">
+          <a-button :loading="loading" block html-type="submit" size="large" type="primary">
             注册
           </a-button>
         </div>
