@@ -1,5 +1,5 @@
 <script lang="ts" setup>
-import { onBeforeUnmount, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import type { FormInstance } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 import type { Rule } from 'ant-design-vue/es/form'
@@ -8,6 +8,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { login, sendEmailLoginCode } from '@/api/userController'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { setAccessToken } from '@/utils/auth'
+import backgroundVideo from '@/assets/background.mp4'
+import logo from '@/assets/logo.png'
 
 type LoginTabKey = 'accountPassword' | 'emailCode' | 'phonePassword' | 'phoneCode'
 
@@ -22,11 +24,65 @@ type LoginMeta = {
   loginType: Required<API.LoginRequest>['loginType']
 }
 
+type LoginCategoryKey = 'password' | 'code'
+
+const loginTabMeta: Record<LoginTabKey, LoginMeta> = {
+  accountPassword: {
+    key: 'accountPassword',
+    label: '账号密码登录',
+    description: '使用账号与密码快速登录',
+    loginType: 'ACCOUNT_PASSWORD',
+  },
+  emailCode: {
+    key: 'emailCode',
+    label: '邮箱验证码登录',
+    description: '通过邮箱验证码安全登录',
+    loginType: 'EMAIL_CODE',
+  },
+  phonePassword: {
+    key: 'phonePassword',
+    label: '手机号密码登录',
+    description: '使用绑定手机号与密码登录',
+    loginType: 'PHONE_PASSWORD',
+  },
+  phoneCode: {
+    key: 'phoneCode',
+    label: '手机号验证码登录',
+    description: '手机验证码快捷登录',
+    loginType: 'PHONE_CODE',
+  },
+}
+
+const loginCategories: Record<LoginCategoryKey, LoginTabKey[]> = {
+  password: ['accountPassword', 'phonePassword'],
+  code: ['emailCode', 'phoneCode'],
+}
+
+const categoryForTab: Record<LoginTabKey, LoginCategoryKey> = {
+  accountPassword: 'password',
+  emailCode: 'code',
+  phonePassword: 'password',
+  phoneCode: 'code',
+}
+
+const categoryOptions: { label: string; value: LoginCategoryKey }[] = [
+  { label: '密码登录', value: 'password' },
+  { label: '验证码登录', value: 'code' },
+]
+
 const router = useRouter()
 const route = useRoute()
 const loginUserStore = useLoginUserStore()
 
 const activeKey = ref<LoginTabKey>('accountPassword')
+const activeCategory = ref<LoginCategoryKey>(categoryForTab[activeKey.value])
+const subOptions = computed(() =>
+  loginCategories[activeCategory.value].map((key) => ({
+    label: loginTabMeta[key].label,
+    value: key,
+  })),
+)
+const currentTabMeta = computed(() => loginTabMeta[activeKey.value])
 const loading = ref(false)
 
 const formRefs = reactive<Record<LoginTabKey, FormInstance | null>>({
@@ -39,6 +95,20 @@ const formRefs = reactive<Record<LoginTabKey, FormInstance | null>>({
 const setFormRef = (key: LoginTabKey) => (instance: FormInstance | null) => {
   formRefs[key] = instance
 }
+
+watch(activeCategory, (category) => {
+  const candidates = loginCategories[category]
+  if (!candidates.includes(activeKey.value)) {
+    activeKey.value = candidates[0]
+  }
+})
+
+watch(activeKey, (key) => {
+  const category = categoryForTab[key]
+  if (category !== activeCategory.value) {
+    activeCategory.value = category
+  }
+})
 
 const loginForms = reactive<LoginFormMap>({
   accountPassword: {
@@ -86,33 +156,6 @@ const rules: Record<LoginTabKey, FormRulesMap> = {
     loginCode: [{ required: true, message: '请输入验证码' }],
   },
 }
-
-const tabs: LoginMeta[] = [
-  {
-    key: 'accountPassword',
-    label: '账号密码登录',
-    description: '使用账号与密码快速登录',
-    loginType: 'ACCOUNT_PASSWORD',
-  },
-  {
-    key: 'emailCode',
-    label: '邮箱验证码登录',
-    description: '通过邮箱验证码安全登录',
-    loginType: 'EMAIL_CODE',
-  },
-  {
-    key: 'phonePassword',
-    label: '手机号密码登录',
-    description: '使用绑定手机号与密码登录',
-    loginType: 'PHONE_PASSWORD',
-  },
-  {
-    key: 'phoneCode',
-    label: '手机号验证码登录',
-    description: '手机验证码快捷登录',
-    loginType: 'PHONE_CODE',
-  },
-]
 
 const emailCountdown = ref(0)
 const phoneCountdown = ref(0)
@@ -186,7 +229,7 @@ const sendPhoneCode = async () => {
 
 const buildLoginPayload = (key: LoginTabKey): API.LoginRequest => {
   const base: API.LoginRequest = {
-    loginType: tabs.find((tab) => tab.key === key)?.loginType,
+    loginType: loginTabMeta[key].loginType,
   }
 
   const values = loginForms[key]
@@ -271,194 +314,483 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="login-page">
-    <a-card bordered="false" class="login-card">
-      <div class="login-card__header">
-        <div>
-          <h1 class="login-card__title">欢迎登录</h1>
-          <p class="login-card__subtitle">请选择合适的方式登录 SaKi 酱 AI 代码生成工具</p>
+  <div class="auth-page">
+    <video autoplay class="auth-page__background" loop muted playsinline>
+      <source :src="backgroundVideo" type="video/mp4" />
+    </video>
+    <div class="auth-page__overlay"></div>
+    <div class="auth-page__content">
+      <div class="auth-card">
+        <div class="auth-card__brand">
+          <img :src="logo" alt="SaKi酱AI代码生成工具 logo" class="auth-card__brand-logo" />
+          <h1 class="auth-card__brand-title">AI代码生成工具</h1>
         </div>
-      </div>
 
-      <a-tabs v-model:activeKey="activeKey" size="large">
-        <a-tab-pane v-for="tab in tabs" :key="tab.key" :tab="tab.label">
-          <p class="login-card__description">{{ tab.description }}</p>
-          <a-form
-            :ref="setFormRef(tab.key)"
-            :model="loginForms[tab.key]"
-            :rules="rules[tab.key]"
-            autocomplete="off"
-            layout="vertical"
-            @finish="() => handleSubmit(tab.key)"
-          >
-            <template v-if="tab.key === 'accountPassword'">
-              <a-form-item label="账号" name="userAccount">
-                <a-input
-                  v-model:value="loginForms.accountPassword.userAccount"
-                  placeholder="请输入账号"
-                />
-              </a-form-item>
-              <a-form-item label="密码" name="userPassword">
-                <a-input-password
-                  v-model:value="loginForms.accountPassword.userPassword"
-                  placeholder="请输入密码"
-                />
-              </a-form-item>
-            </template>
+        <div class="auth-card__switcher">
+          <a-segmented
+            v-model:value="activeCategory"
+            :options="categoryOptions"
+            size="large"
+            class="auth-card__segmented auth-card__segmented--category"
+          />
+          <a-segmented
+            v-model:value="activeKey"
+            :options="subOptions"
+            class="auth-card__segmented"
+          />
+        </div>
 
-            <template v-else-if="tab.key === 'emailCode'">
-              <a-form-item label="邮箱" name="userEmail">
-                <a-input v-model:value="loginForms.emailCode.userEmail" placeholder="请输入邮箱" />
-              </a-form-item>
-              <a-form-item label="验证码" name="loginCode">
-                <a-input-group compact>
-                  <a-input
-                    v-model:value="loginForms.emailCode.loginCode"
-                    class="login-card__code-input"
-                    placeholder="请输入验证码"
-                  />
-                  <a-button
-                    :disabled="emailCountdown > 0"
-                    class="login-card__code-button"
-                    type="link"
-                    @click="sendEmailCode"
-                  >
-                    {{ emailCountdown > 0 ? `${emailCountdown}s后重试` : '发送验证码' }}
-                  </a-button>
-                </a-input-group>
-              </a-form-item>
-            </template>
+        <p class="auth-card__description">{{ currentTabMeta.description }}</p>
 
-            <template v-else-if="tab.key === 'phonePassword'">
-              <a-form-item label="手机号" name="userPhone">
-                <a-input
-                  v-model:value="loginForms.phonePassword.userPhone"
-                  placeholder="请输入手机号"
-                />
-              </a-form-item>
-              <a-form-item label="密码" name="userPassword">
-                <a-input-password
-                  v-model:value="loginForms.phonePassword.userPassword"
-                  placeholder="请输入密码"
-                />
-              </a-form-item>
-            </template>
-
-            <template v-else>
-              <a-form-item label="手机号" name="userPhone">
-                <a-input
-                  v-model:value="loginForms.phoneCode.userPhone"
-                  placeholder="请输入手机号"
-                />
-              </a-form-item>
-              <a-form-item label="验证码" name="loginCode">
-                <a-input-group compact>
-                  <a-input
-                    v-model:value="loginForms.phoneCode.loginCode"
-                    class="login-card__code-input"
-                    placeholder="请输入验证码"
-                  />
-                  <a-button
-                    :disabled="phoneCountdown > 0"
-                    class="login-card__code-button"
-                    type="link"
-                    @click="sendPhoneCode"
-                  >
-                    {{ phoneCountdown > 0 ? `${phoneCountdown}s后重试` : '发送验证码' }}
-                  </a-button>
-                </a-input-group>
-              </a-form-item>
-            </template>
-
-            <div class="login-card__actions">
-              <RouterLink class="login-card__link" to="/user/register"
-                >没有账号？立即注册</RouterLink
+        <a-form
+          :key="activeKey"
+          :ref="setFormRef(activeKey)"
+          :model="loginForms[activeKey]"
+          :rules="rules[activeKey]"
+          autocomplete="off"
+          layout="vertical"
+          class="auth-card__form"
+          @finish="() => handleSubmit(activeKey)"
+        >
+          <template v-if="activeKey === 'accountPassword'">
+            <a-form-item label="账号" name="userAccount">
+              <a-input
+                v-model:value="loginForms.accountPassword.userAccount"
+                placeholder="请输入账号"
+                size="large"
               >
-              <a-button :loading="loading" block html-type="submit" size="large" type="primary">
-                登录
-              </a-button>
-            </div>
-          </a-form>
-        </a-tab-pane>
-      </a-tabs>
-    </a-card>
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm0 2c-4.42 0-8 2.24-8 5v1h16v-1c0-2.76-3.58-5-8-5Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="密码" name="userPassword">
+              <a-input-password
+                v-model:value="loginForms.accountPassword.userPassword"
+                placeholder="请输入密码"
+                size="large"
+              >
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 8a1 1 0 0 1-2 0v-2a1 1 0 1 1 2 0v2Zm3-8H10V7a2 2 0 0 1 4 0v2Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input-password>
+            </a-form-item>
+          </template>
+
+          <template v-else-if="activeKey === 'emailCode'">
+            <a-form-item label="邮箱" name="userEmail">
+              <a-input
+                v-model:value="loginForms.emailCode.userEmail"
+                placeholder="请输入邮箱"
+                size="large"
+              >
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M4 6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H4Zm8 6L4 8h16l-8 4Zm0 2 8-4.8V16H4v-6.8L12 14Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="验证码" name="loginCode">
+              <div class="auth-card__code-row">
+                <a-input
+                  v-model:value="loginForms.emailCode.loginCode"
+                  class="auth-card__code-input"
+                  placeholder="请输入验证码"
+                  size="large"
+                >
+                  <template #prefix>
+                    <span aria-hidden="true" class="auth-input__icon">
+                      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          d="M12 2 4 5v6c0 5.25 3.4 10.05 8 11 4.6-.95 8-5.75 8-11V5l-8-3Zm0 4.18 4 1.5V11c0 3.44-1.91 6.83-4 7.64-2.09-.81-4-4.2-4-7.64V7.68l4-1.5Zm-2 5.82 2 2 3-3-1.4-1.42-1.6 1.58-.6-.58L10 12Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </template>
+                </a-input>
+                <a-button
+                  :disabled="emailCountdown > 0"
+                  class="auth-card__code-button"
+                  ghost
+                  size="large"
+                  type="primary"
+                  @click="sendEmailCode"
+                >
+                  {{ emailCountdown > 0 ? `${emailCountdown}s后重试` : '发送验证码' }}
+                </a-button>
+              </div>
+            </a-form-item>
+          </template>
+
+          <template v-else-if="activeKey === 'phonePassword'">
+            <a-form-item label="手机号" name="userPhone">
+              <a-input
+                v-model:value="loginForms.phonePassword.userPhone"
+                placeholder="请输入手机号"
+                size="large"
+              >
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M15 2H9a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14H9V6h6v10Zm-3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="密码" name="userPassword">
+              <a-input-password
+                v-model:value="loginForms.phonePassword.userPassword"
+                placeholder="请输入密码"
+                size="large"
+              >
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M17 9h-1V7a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-8a2 2 0 0 0-2-2Zm-6 8a1 1 0 0 1-2 0v-2a1 1 0 1 1 2 0v2Zm3-8H10V7a2 2 0 0 1 4 0v2Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input-password>
+            </a-form-item>
+          </template>
+
+          <template v-else>
+            <a-form-item label="手机号" name="userPhone">
+              <a-input
+                v-model:value="loginForms.phoneCode.userPhone"
+                placeholder="请输入手机号"
+                size="large"
+              >
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M15 2H9a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2Zm0 14H9V6h6v10Zm-3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input>
+            </a-form-item>
+            <a-form-item label="验证码" name="loginCode">
+              <div class="auth-card__code-row">
+                <a-input
+                  v-model:value="loginForms.phoneCode.loginCode"
+                  class="auth-card__code-input"
+                  placeholder="请输入验证码"
+                  size="large"
+                >
+                  <template #prefix>
+                    <span aria-hidden="true" class="auth-input__icon">
+                      <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                        <path
+                          d="M12 2 4 5v6c0 5.25 3.4 10.05 8 11 4.6-.95 8-5.75 8-11V5l-8-3Zm0 4.18 4 1.5V11c0 3.44-1.91 6.83-4 7.64-2.09-.81-4-4.2-4-7.64V7.68l4-1.5Zm-2 5.82 2 2 3-3-1.4-1.42-1.6 1.58-.6-.58L10 12Z"
+                          fill="currentColor"
+                        />
+                      </svg>
+                    </span>
+                  </template>
+                </a-input>
+                <a-button
+                  :disabled="phoneCountdown > 0"
+                  class="auth-card__code-button"
+                  ghost
+                  size="large"
+                  type="primary"
+                  @click="sendPhoneCode"
+                >
+                  {{ phoneCountdown > 0 ? `${phoneCountdown}s后重试` : '发送验证码' }}
+                </a-button>
+              </div>
+            </a-form-item>
+          </template>
+
+          <div class="auth-card__actions">
+            <RouterLink class="auth-card__link" to="/user/register">没有账号？立即注册</RouterLink>
+            <a-button :loading="loading" block html-type="submit" size="large" type="primary">
+              登录
+            </a-button>
+          </div>
+        </a-form>
+      </div>
+    </div>
   </div>
 </template>
 
+
 <style scoped>
-.login-page {
-  min-height: calc(100vh - 160px);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 48px 16px;
-  background: linear-gradient(135deg, #f0f5ff 0%, #e6fffb 100%);
+.auth-page {
+  position: relative;
+  min-height: 100vh;
+  overflow: hidden;
+  color: #ffffff;
 }
 
-.login-card {
+.auth-page__background {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
-  max-width: 520px;
-  box-shadow: 0 18px 45px rgba(15, 23, 42, 0.08);
-  border-radius: 16px;
+  height: 100%;
+  object-fit: cover;
 }
 
-.login-card__header {
+.auth-page__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(22, 24, 61, 0.85) 0%, rgba(14, 11, 40, 0.7) 45%, rgba(6, 4, 24, 0.82) 100%);
+}
+
+.auth-page__content {
+  position: relative;
+  z-index: 1;
+  min-height: 100vh;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  margin-bottom: 24px;
+  justify-content: flex-end;
+  padding: clamp(48px, 8vw, 120px) clamp(32px, 10vw, 160px);
+  box-sizing: border-box;
 }
 
-.login-card__title {
+.auth-card {
+  width: min(420px, 100%);
+  margin-left: auto;
+  padding: 32px clamp(24px, 6vw, 40px);
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
+  box-shadow:
+    0 28px 50px rgba(5, 7, 19, 0.55),
+    0 0 65px rgba(118, 54, 255, 0.4);
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.auth-card__brand {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.auth-card__brand-logo {
+  width: 56px;
+  height: 56px;
+  object-fit: contain;
+}
+
+.auth-card__brand-title {
   margin: 0;
   font-size: 28px;
   font-weight: 700;
-  color: #1d2129;
+  letter-spacing: 1px;
+  color: #ffffff;
 }
 
-.login-card__subtitle {
-  margin: 4px 0 0;
-  color: #86909c;
-}
-
-.login-card__description {
-  margin-bottom: 12px;
-  color: #4e5969;
-}
-
-.login-card__actions {
+.auth-card__switcher {
   display: flex;
   flex-direction: column;
-  align-items: stretch;
-  gap: 8px;
-  margin-top: 12px;
+  gap: 12px;
 }
 
-.login-card__link {
+.auth-card__segmented {
+  width: 100%;
+}
+
+.auth-card__description {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.75);
+  font-size: 14px;
+}
+
+.auth-card__form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.auth-card__code-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.auth-card__code-input {
+  flex: 1 1 auto;
+}
+
+.auth-card__code-button {
+  min-width: 138px;
+  border-radius: 10px;
+}
+
+.auth-card__actions {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.auth-card__link {
   align-self: flex-end;
+  color: rgba(255, 255, 255, 0.85);
   font-size: 13px;
 }
 
-.login-card__code-input {
-  width: calc(100% - 140px);
+.auth-card__link:hover {
+  color: #ffffff;
 }
 
-.login-card__code-button {
-  width: 140px;
-  text-align: right;
+.auth-input__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.85);
 }
 
-@media (max-width: 480px) {
-  .login-card {
-    border-radius: 12px;
+.auth-input__icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+:deep(.ant-segmented) {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 4px;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+:deep(.ant-segmented-thumb) {
+  background: linear-gradient(135deg, rgba(101, 87, 255, 0.95), rgba(169, 104, 255, 0.9));
+  box-shadow: 0 10px 25px rgba(135, 92, 255, 0.55);
+}
+
+:deep(.ant-segmented-item-selected .ant-segmented-item-label) {
+  color: #ffffff;
+}
+
+:deep(.ant-segmented-item-label) {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+:deep(.ant-form-item-label > label) {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
+
+:deep(.ant-form-item) {
+  margin-bottom: 18px;
+}
+
+:deep(.ant-input),
+:deep(.ant-input-affix-wrapper) {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+}
+
+:deep(.ant-input-affix-wrapper:hover),
+:deep(.ant-input-affix-wrapper-focused) {
+  border-color: rgba(186, 140, 255, 0.9);
+  box-shadow: 0 0 0 2px rgba(135, 92, 255, 0.35);
+}
+
+:deep(.ant-input::placeholder),
+:deep(.ant-input-affix-wrapper input::placeholder) {
+  color: rgba(255, 255, 255, 0.55);
+}
+
+:deep(.ant-input-prefix) {
+  margin-right: 8px;
+}
+
+:deep(.ant-input-password-icon),
+:deep(.anticon-eye-invisible) {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+:deep(.ant-btn-primary.auth-card__code-button) {
+  border-color: rgba(255, 255, 255, 0.75);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(118, 54, 255, 0.45);
+}
+
+:deep(.ant-btn-primary.auth-card__code-button[disabled]) {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.65);
+}
+
+:deep(.ant-btn-primary) {
+  box-shadow: 0 12px 30px rgba(135, 92, 255, 0.4);
+}
+
+@media (max-width: 960px) {
+  .auth-page__content {
+    justify-content: center;
+    padding: 72px 32px;
   }
 
-  .login-card__code-input {
-    width: calc(100% - 120px);
+  .auth-card {
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .auth-card {
+    padding: 28px 20px;
+    border-radius: 18px;
   }
 
-  .login-card__code-button {
-    width: 120px;
+  .auth-card__brand {
+    gap: 12px;
+  }
+
+  .auth-card__brand-logo {
+    width: 48px;
+    height: 48px;
+  }
+
+  .auth-card__code-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-card__code-button {
+    width: 100%;
   }
 }
 </style>
+

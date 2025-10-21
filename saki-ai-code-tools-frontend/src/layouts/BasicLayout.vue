@@ -69,11 +69,14 @@ const handleLogout = () => {
   message.success('已注销登录')
   router.push('/user/login')
 }
+
+const hideGlobalChrome = computed(() => Boolean(route.meta?.hideLayout))
 </script>
 
 <template>
   <a-layout class="basic-layout">
     <GlobalHeader
+      v-if="!hideGlobalChrome"
       v-model:modelValue="selectedKeys"
       :menu-items="menuItems"
       :user="headerUser"
@@ -81,10 +84,12 @@ const handleLogout = () => {
       @logout="handleLogout"
       @profile="handleProfile"
     />
-    <a-layout-content class="basic-layout__content">
+    <a-layout-content
+      :class="['basic-layout__content', { 'basic-layout__content--auth': hideGlobalChrome }]"
+    >
       <RouterView />
     </a-layout-content>
-    <GlobalFooter />
+    <GlobalFooter v-if="!hideGlobalChrome" />
   </a-layout>
 </template>
 
@@ -101,9 +106,18 @@ const handleLogout = () => {
   background-color: #f5f5f5;
 }
 
+.basic-layout__content--auth {
+  padding: 0;
+  background-color: transparent;
+}
+
 @media (max-width: 768px) {
   .basic-layout__content {
     padding: 16px;
+  }
+
+  .basic-layout__content--auth {
+    padding: 0;
   }
 }
 </style>
