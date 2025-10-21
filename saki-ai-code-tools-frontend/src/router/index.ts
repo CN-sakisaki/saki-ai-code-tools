@@ -20,11 +20,17 @@ const router = createRouter({
       path: '/user/login',
       name: '用户登录',
       component: UserLogin,
+      meta: {
+        hideLayout: true,
+      },
     },
     {
       path: '/user/register',
       name: '用户注册',
       component: UserRegister,
+      meta: {
+        hideLayout: true,
+      },
     },
     {
       path: '/user/userManage',

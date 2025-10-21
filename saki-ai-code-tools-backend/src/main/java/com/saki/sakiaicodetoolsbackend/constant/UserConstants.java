@@ -29,18 +29,6 @@ public final class UserConstants {
      */
     public static final String DEFAULT_USERNAME_PREFIX = "ai_";
 
-    /**
-     * 默认的用户简介。
-     * 当用户未设置个人简介时显示此默认内容。
-     */
-    public static final String DEFAULT_PROFILE = "这个人好懒，什么都没留下...";
-
-    /**
-     * 默认的用户头像路径。
-     * 当用户未上传自定义头像时使用的默认头像路径。
-     */
-    public static final String DEFAULT_AVATAR_PATH = "/static/images/default-avatar.png";
-
     // ===================== 用户状态默认值常量 =====================
 
     /**

@@ -15,10 +15,10 @@ create table user
     user_name       varchar(256)                           not null comment '用户名',
     user_email      varchar(256)                           null comment '用户邮箱',
     user_phone      varchar(256)                           null comment '用户手机号',
-    user_avatar     varchar(512)                           not null comment '用户头像',
-    user_profile    varchar(512)                           not null comment '用户简介',
+    user_avatar     varchar(512)                           null comment '用户头像',
+    user_profile    varchar(512)                           null comment '用户简介',
     user_role       varchar(256) default 'user'            not null comment '用户角色（user/admin）',
-    user_status     tinyint      default 0                 not null comment '用户状态（0-禁用，1-状态）',
+    user_status     tinyint      default 0                 not null comment '用户状态（0-禁用，1-正常）',
     is_vip          tinyint      default 0                 not null comment '是否为会员（0-普通会员，1-vip 会员）',
     vip_start_time  datetime                               null comment 'vip 会员开始时间',
     vip_end_time    datetime                               null comment 'vip 会员结束时间',
@@ -47,5 +47,7 @@ create index idx_user_role
 
 create index idx_user_status
     on user (user_status);
+
+
 
 
