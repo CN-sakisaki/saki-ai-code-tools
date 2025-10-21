@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { RouterLink } from 'vue-router'
 
-import logo from '@/assets/logo.svg'
+import logo from '@/assets/logo.png'
 
 export interface HeaderMenuItem {
   key: string
@@ -112,8 +112,9 @@ const handleMenuClick = ({ key }: { key: string }) => {
 }
 
 .global-header__logo {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
 }
 
 .global-header__menu {
