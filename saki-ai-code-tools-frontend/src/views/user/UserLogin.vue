@@ -65,11 +65,6 @@ const categoryForTab: Record<LoginTabKey, LoginCategoryKey> = {
   phoneCode: 'code',
 }
 
-const categoryOptions: { label: string; value: LoginCategoryKey }[] = [
-  { label: '账号密码登录', value: 'password' },
-  { label: '验证码登录', value: 'code' },
-]
-
 const router = useRouter()
 const route = useRoute()
 const loginUserStore = useLoginUserStore()
@@ -84,6 +79,12 @@ const subOptions = computed(() =>
 )
 const currentTabMeta = computed(() => loginTabMeta[activeKey.value])
 const loading = ref(false)
+
+const switchCategory = (category: LoginCategoryKey) => {
+  if (activeCategory.value !== category) {
+    activeCategory.value = category
+  }
+}
 
 const formRefs = reactive<Record<LoginTabKey, FormInstance | null>>({
   accountPassword: null,
@@ -530,12 +531,24 @@ onBeforeUnmount(() => {
 
           <div class="auth-card__actions">
             <div class="auth-card__actions-top">
-              <a-segmented
-                v-model:value="activeCategory"
-                :options="categoryOptions"
-                size="large"
-                class="auth-card__segmented-category"
-              />
+              <div class="auth-card__category-switch">
+                <button
+                  type="button"
+                  class="auth-card__category-button"
+                  :class="{ 'is-active': activeCategory === 'password' }"
+                  @click="switchCategory('password')"
+                >
+                  账号密码登录&lt;&lt;
+                </button>
+                <button
+                  type="button"
+                  class="auth-card__category-button"
+                  :class="{ 'is-active': activeCategory === 'code' }"
+                  @click="switchCategory('code')"
+                >
+                  验证码登录&lt;&lt;
+                </button>
+              </div>
               <RouterLink class="auth-card__link" to="/user/register">没有账号？立即注册</RouterLink>
             </div>
             <a-button :loading="loading" block html-type="submit" size="large" type="primary">
@@ -671,9 +684,24 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-.auth-card__segmented-category {
-  min-width: 220px;
-  flex-shrink: 0;
+.auth-card__category-switch {
+  display: flex;
+  gap: 12px;
+}
+
+.auth-card__category-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.auth-card__category-button.is-active,
+.auth-card__category-button:hover {
+  color: #ffffff;
 }
 
 .auth-card__actions-top .auth-card__link {
@@ -703,25 +731,36 @@ onBeforeUnmount(() => {
   height: 18px;
 }
 
-:deep(.ant-segmented) {
-  background: rgba(255, 255, 255, 0.08);
+:deep(.auth-card__segmented-main .ant-segmented) {
+  width: 100%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 14px;
   padding: 4px;
   color: rgba(255, 255, 255, 0.75);
 }
 
-:deep(.ant-segmented-thumb) {
-  background: linear-gradient(135deg, rgba(101, 87, 255, 0.95), rgba(169, 104, 255, 0.9));
-  box-shadow: 0 10px 25px rgba(135, 92, 255, 0.55);
+:deep(.auth-card__segmented-main .ant-segmented-group) {
+  width: 100%;
 }
 
-:deep(.ant-segmented-item-selected .ant-segmented-item-label) {
-  color: #ffffff;
+:deep(.auth-card__segmented-main .ant-segmented-item) {
+  flex: 1 0 50%;
+  justify-content: center;
 }
 
-:deep(.ant-segmented-item-label) {
+:deep(.auth-card__segmented-main .ant-segmented-thumb) {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+
+:deep(.auth-card__segmented-main .ant-segmented-item-label) {
   font-size: 14px;
   font-weight: 500;
+}
+
+:deep(.auth-card__segmented-main .ant-segmented-item-selected .ant-segmented-item-label) {
+  color: #ffffff;
 }
 
 :deep(.ant-form-item-label > label) {
