@@ -65,11 +65,6 @@ const categoryForTab: Record<LoginTabKey, LoginCategoryKey> = {
   phoneCode: 'code',
 }
 
-const categoryOptions: { label: string; value: LoginCategoryKey }[] = [
-  { label: '账号密码登录', value: 'password' },
-  { label: '验证码登录', value: 'code' },
-]
-
 const router = useRouter()
 const route = useRoute()
 const loginUserStore = useLoginUserStore()
@@ -84,6 +79,12 @@ const subOptions = computed(() =>
 )
 const currentTabMeta = computed(() => loginTabMeta[activeKey.value])
 const loading = ref(false)
+
+const switchCategory = (category: LoginCategoryKey) => {
+  if (activeCategory.value !== category) {
+    activeCategory.value = category
+  }
+}
 
 const formRefs = reactive<Record<LoginTabKey, FormInstance | null>>({
   accountPassword: null,
@@ -530,13 +531,19 @@ onBeforeUnmount(() => {
 
           <div class="auth-card__actions">
             <div class="auth-card__actions-top">
-              <a-segmented
-                v-model:value="activeCategory"
-                :options="categoryOptions"
-                size="large"
-                class="auth-card__segmented-category"
-              />
-              <RouterLink class="auth-card__link" to="/user/register">没有账号？立即注册</RouterLink>
+              <div class="auth-card__category-switch">
+                <button
+                  type="button"
+                  class="auth-card__category-button"
+                  @click="switchCategory(activeCategory === 'password' ? 'code' : 'password')"
+                >
+                  {{ activeCategory === 'password' ? '验证码登录 <<' : '账号密码登录 <<' }}
+                </button>
+              </div>
+
+              <RouterLink class="auth-card__link" to="/user/register"
+                >没有账号？立即注册</RouterLink
+              >
             </div>
             <a-button :loading="loading" block html-type="submit" size="large" type="primary">
               登录
@@ -547,7 +554,6 @@ onBeforeUnmount(() => {
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .auth-page {
@@ -569,7 +575,12 @@ onBeforeUnmount(() => {
 .auth-page__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(22, 24, 61, 0.85) 0%, rgba(14, 11, 40, 0.7) 45%, rgba(6, 4, 24, 0.82) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(22, 24, 61, 0.85) 0%,
+    rgba(14, 11, 40, 0.7) 45%,
+    rgba(6, 4, 24, 0.82) 100%
+  );
 }
 
 .auth-page__content {
@@ -606,8 +617,8 @@ onBeforeUnmount(() => {
 }
 
 .auth-card__brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
 }
 
@@ -625,6 +636,7 @@ onBeforeUnmount(() => {
 }
 
 .auth-card__segmented-main {
+  background: #7c7a7a;
   width: 100%;
   max-width: 320px;
   margin: 0 auto;
@@ -671,9 +683,24 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
-.auth-card__segmented-category {
-  min-width: 220px;
-  flex-shrink: 0;
+.auth-card__category-switch {
+  display: flex;
+  gap: 12px;
+}
+
+.auth-card__category-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 13px;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.auth-card__category-button.is-active,
+.auth-card__category-button:hover {
+  color: #ffffff;
 }
 
 .auth-card__actions-top .auth-card__link {
@@ -703,25 +730,36 @@ onBeforeUnmount(() => {
   height: 18px;
 }
 
-:deep(.ant-segmented) {
+:deep(.auth-card__segmented-main .ant-segmented) {
+  width: 100%;
   background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 14px;
   padding: 4px;
   color: rgba(255, 255, 255, 0.75);
 }
 
-:deep(.ant-segmented-thumb) {
-  background: linear-gradient(135deg, rgba(101, 87, 255, 0.95), rgba(169, 104, 255, 0.9));
-  box-shadow: 0 10px 25px rgba(135, 92, 255, 0.55);
+:deep(.auth-card__segmented-main .ant-segmented-group) {
+  width: 100%;
 }
 
-:deep(.ant-segmented-item-selected .ant-segmented-item-label) {
-  color: #ffffff;
+:deep(.auth-card__segmented-main .ant-segmented-item) {
+  flex: 1 0 50%;
+  justify-content: center;
 }
 
-:deep(.ant-segmented-item-label) {
+:deep(.auth-card__segmented-main .ant-segmented-thumb) {
+  background: rgba(255, 255, 255, 0.18);
+  box-shadow: none;
+}
+
+:deep(.auth-card__segmented-main .ant-segmented-item-label) {
   font-size: 14px;
   font-weight: 500;
+}
+
+:deep(.auth-card__segmented-main .ant-segmented-item-selected .ant-segmented-item-label) {
+  color: #000000;
 }
 
 :deep(.ant-form-item-label > label) {
@@ -798,8 +836,8 @@ onBeforeUnmount(() => {
   }
 
   .auth-card__brand-logo {
-    width: 48px;
-    height: 48px;
+    width: 100px;
+    height: 100px;
   }
 
   .auth-card__code-row {
@@ -812,4 +850,3 @@ onBeforeUnmount(() => {
   }
 }
 </style>
-
