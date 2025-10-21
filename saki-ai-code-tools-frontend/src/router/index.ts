@@ -1,5 +1,8 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
+import ACCESS_ENUM from '@/access/accessEnum'
 import HomeView from '../views/HomeView.vue'
+import NoAuth from '@/views/NoAuth.vue'
 import UserLogin from '@/views/user/UserLogin.vue'
 import UserRegister from '@/views/user/UserRegister.vue'
 import UserManagePage from '@/views/user/UserManagePage.vue'
@@ -22,6 +25,7 @@ const router = createRouter({
       component: UserLogin,
       meta: {
         hideLayout: true,
+        hideInMenu: true,
       },
     },
     {
@@ -30,6 +34,7 @@ const router = createRouter({
       component: UserRegister,
       meta: {
         hideLayout: true,
+        hideInMenu: true,
       },
     },
     {
@@ -39,6 +44,7 @@ const router = createRouter({
       meta: {
         label: '用户管理',
         showInMenu: true,
+        access: ACCESS_ENUM.ADMIN,
       },
     },
     {
@@ -48,6 +54,15 @@ const router = createRouter({
       meta: {
         label: '关于我们',
         showInMenu: true,
+      },
+    },
+    {
+      path: '/no-auth',
+      name: 'noAuth',
+      component: NoAuth,
+      meta: {
+        label: '无权限',
+        hideInMenu: true,
       },
     },
   ],
