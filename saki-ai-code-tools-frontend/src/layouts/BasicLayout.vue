@@ -4,19 +4,24 @@ import { useRoute } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { message } from 'ant-design-vue'
 
+import ACCESS_ENUM from '@/access/accessEnum'
 import GlobalFooter from '@/components/GlobalFooter.vue'
 import GlobalHeader from '@/components/GlobalHeader.vue'
 import router from '@/router'
 import { useLoginUserStore } from '@/stores/loginUser'
 
 // 自动生成菜单项
-const menuItems = router.options.routes
-  .filter((r) => r.meta?.showInMenu)
-  .map((r) => ({
-    key: r.name as string,
-    label: r.meta?.label as string,
-    path: r.path,
-  }))
+const menuItems = computed(() =>
+  router.options.routes
+    .filter((r) => r.meta?.showInMenu)
+    .map((r) => ({
+      key: r.name as string,
+      label: r.meta?.label as string,
+      path: r.path,
+      access: r.meta?.access,
+      hideInMenu: r.meta?.hideInMenu,
+    })),
+)
 
 const route = useRoute()
 
@@ -37,7 +42,7 @@ const loginUserStore = useLoginUserStore()
 const { currentUser } = storeToRefs(loginUserStore)
 
 const headerUser = computed(() => {
-  if (!currentUser.value) {
+  if (!currentUser.value || currentUser.value.userRole === ACCESS_ENUM.NOT_LOGIN) {
     return null
   }
   const name =
@@ -79,6 +84,7 @@ const hideGlobalChrome = computed(() => Boolean(route.meta?.hideLayout))
       v-if="!hideGlobalChrome"
       v-model:modelValue="selectedKeys"
       :menu-items="menuItems"
+      :current-user="currentUser"
       :user="headerUser"
       @login="handleAuth"
       @logout="handleLogout"
