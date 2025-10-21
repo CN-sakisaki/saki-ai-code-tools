@@ -1,10 +1,13 @@
-<script setup lang="ts">
-import { onMounted, ref } from 'vue'
+<script lang="ts" setup>
+import { computed, onMounted, ref } from 'vue'
 import { useRoute } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { message } from 'ant-design-vue'
 
 import GlobalFooter from '@/components/GlobalFooter.vue'
-import GlobalHeader, { type HeaderUserProfile } from '@/components/GlobalHeader.vue'
+import GlobalHeader from '@/components/GlobalHeader.vue'
 import router from '@/router'
+import { useLoginUserStore } from '@/stores/loginUser'
 
 // 自动生成菜单项
 const menuItems = router.options.routes
@@ -30,25 +33,63 @@ router.afterEach((to) => {
   selectedKeys.value = [to.path]
 })
 
-const currentUser = ref<HeaderUserProfile | null>(null)
+const loginUserStore = useLoginUserStore()
+const { currentUser } = storeToRefs(loginUserStore)
+
+const headerUser = computed(() => {
+  if (!currentUser.value) {
+    return null
+  }
+  const name =
+    currentUser.value.userAccount ||
+    currentUser.value.userEmail ||
+    currentUser.value.userPhone ||
+    currentUser.value.userProfile ||
+    '用户'
+
+  return {
+    name,
+    avatar: currentUser.value.userAvatar || undefined,
+  }
+})
 
 const handleAuth = () => {
-  console.info('Trigger login/register flow')
+  router.push({
+    path: '/user/login',
+    query: { redirect: route.fullPath },
+  })
 }
+
+const handleProfile = () => {
+  router.push('/user/userManage')
+}
+
+const handleLogout = () => {
+  loginUserStore.logout()
+  message.success('已注销登录')
+  router.push('/user/login')
+}
+
+const hideGlobalChrome = computed(() => Boolean(route.meta?.hideLayout))
 </script>
 
 <template>
   <a-layout class="basic-layout">
     <GlobalHeader
-      :menu-items="menuItems"
+      v-if="!hideGlobalChrome"
       v-model:modelValue="selectedKeys"
-      :user="currentUser"
+      :menu-items="menuItems"
+      :user="headerUser"
       @login="handleAuth"
+      @logout="handleLogout"
+      @profile="handleProfile"
     />
-    <a-layout-content class="basic-layout__content">
+    <a-layout-content
+      :class="['basic-layout__content', { 'basic-layout__content--auth': hideGlobalChrome }]"
+    >
       <RouterView />
     </a-layout-content>
-    <GlobalFooter />
+    <GlobalFooter v-if="!hideGlobalChrome" />
   </a-layout>
 </template>
 
@@ -65,9 +106,18 @@ const handleAuth = () => {
   background-color: #f5f5f5;
 }
 
+.basic-layout__content--auth {
+  padding: 0;
+  background-color: transparent;
+}
+
 @media (max-width: 768px) {
   .basic-layout__content {
     padding: 16px;
+  }
+
+  .basic-layout__content--auth {
+    padding: 0;
   }
 }
 </style>

@@ -167,8 +167,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                 .userAccount(userAccount)
                 .userPassword(encryptedPassword)
                 .userName(buildDefaultUserName(userAccount))
-                .userAvatar(UserConstants.DEFAULT_AVATAR_PATH)
-                .userProfile(UserConstants.DEFAULT_PROFILE)
                 .userRole(UserConstants.DEFAULT_USER_ROLE)
                 .userStatus(UserConstants.DEFAULT_USER_STATUS)
                 .isVip(UserConstants.DEFAULT_VIP_STATUS)
@@ -232,8 +230,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUserSalt(salt);
         user.setInviteCode(inviteCode);
         user.setUserName(StrUtil.blankToDefault(user.getUserName(), buildDefaultUserName(userAccount)));
-        user.setUserAvatar(StrUtil.blankToDefault(user.getUserAvatar(), UserConstants.DEFAULT_AVATAR_PATH));
-        user.setUserProfile(StrUtil.blankToDefault(user.getUserProfile(), UserConstants.DEFAULT_PROFILE));
         user.setUserRole(StrUtil.blankToDefault(user.getUserRole(), UserConstants.DEFAULT_USER_ROLE));
         user.setUserStatus(Optional.ofNullable(user.getUserStatus()).orElse(UserConstants.DEFAULT_USER_STATUS));
         Integer isVip = Optional.ofNullable(user.getIsVip()).orElse(UserConstants.DEFAULT_VIP_STATUS);
