@@ -46,7 +46,7 @@ const rules: FormRulesMap = {
     {
       validator: (_rule: Rule, value: string) => {
         if (!value) {
-          return Promise.reject('请确认密码')
+          return Promise.resolve()
         }
         if (value !== formState.userPassword) {
           return Promise.reject('两次输入的密码不一致')
@@ -214,7 +214,7 @@ const handleSubmit = async () => {
 .auth-page__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(140deg, rgba(18, 16, 46, 0.88) 0%, rgba(31, 11, 54, 0.72) 55%, rgba(7, 10, 36, 0.85) 100%);
+  background: linear-gradient(135deg, rgba(22, 24, 61, 0.85) 0%, rgba(14, 11, 40, 0.7) 45%, rgba(6, 4, 24, 0.82) 100%);
 }
 
 .auth-page__content {
@@ -231,17 +231,17 @@ const handleSubmit = async () => {
 .auth-card {
   width: min(420px, 100%);
   margin-left: auto;
-  padding: 36px clamp(24px, 6vw, 44px);
+  padding: 32px clamp(24px, 6vw, 40px);
   border-radius: 22px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
-  background: rgba(255, 255, 255, 0.1);
-  backdrop-filter: blur(18px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(16px);
   box-shadow:
-    0 32px 55px rgba(10, 9, 40, 0.58),
-    0 0 70px rgba(76, 0, 255, 0.35);
+    0 28px 50px rgba(5, 7, 19, 0.55),
+    0 0 65px rgba(118, 54, 255, 0.4);
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 20px;
 }
 
 .auth-card__brand {
