@@ -167,7 +167,11 @@ const handleSubmit = async () => {
           </a-form-item>
 
           <a-form-item label="邀请码（可选）" name="inviteCode">
-            <a-input v-model:value="formState.inviteCode" placeholder="如有邀请码，请输入" size="large">
+            <a-input
+              v-model:value="formState.inviteCode"
+              placeholder="如有邀请码，请输入"
+              size="large"
+            >
               <template #prefix>
                 <span aria-hidden="true" class="auth-input__icon">
                   <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -193,7 +197,6 @@ const handleSubmit = async () => {
   </div>
 </template>
 
-
 <style scoped>
 .auth-page {
   position: relative;
@@ -214,7 +217,12 @@ const handleSubmit = async () => {
 .auth-page__overlay {
   position: absolute;
   inset: 0;
-  background: linear-gradient(135deg, rgba(22, 24, 61, 0.85) 0%, rgba(14, 11, 40, 0.7) 45%, rgba(6, 4, 24, 0.82) 100%);
+  background: linear-gradient(
+    135deg,
+    rgba(22, 24, 61, 0.85) 0%,
+    rgba(14, 11, 40, 0.7) 45%,
+    rgba(6, 4, 24, 0.82) 100%
+  );
 }
 
 .auth-page__content {
@@ -251,8 +259,8 @@ const handleSubmit = async () => {
 }
 
 .auth-card__brand-logo {
-  width: 56px;
-  height: 56px;
+  width: 100px;
+  height: 100px;
   object-fit: contain;
 }
 
@@ -360,9 +368,8 @@ const handleSubmit = async () => {
   }
 
   .auth-card__brand-logo {
-    width: 48px;
-    height: 48px;
+    width: 100px;
+    height: 100px;
   }
 }
 </style>
-
