@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
 
+import ACCESS_ENUM from '@/access/accessEnum'
 import { getUserInfo } from '@/api/userController'
 import { clearAccessToken } from '@/utils/auth'
 
@@ -10,6 +11,12 @@ export const useLoginUserStore = defineStore('loginUser', () => {
 
   const setUser = (user: API.UserVO | null) => {
     currentUser.value = user
+  }
+
+  const setNotLogin = () => {
+    currentUser.value = {
+      userRole: ACCESS_ENUM.NOT_LOGIN,
+    } as API.UserVO
   }
 
   const fetchUser = async () => {
@@ -22,10 +29,10 @@ export const useLoginUserStore = defineStore('loginUser', () => {
       if (data?.code === 0 && data.data) {
         currentUser.value = data.data
       } else {
-        currentUser.value = null
+        setNotLogin()
       }
     } catch (error) {
-      currentUser.value = null
+      setNotLogin()
     } finally {
       loading.value = false
     }
@@ -33,13 +40,14 @@ export const useLoginUserStore = defineStore('loginUser', () => {
 
   const logout = () => {
     clearAccessToken()
-    currentUser.value = null
+    setNotLogin()
   }
 
   return {
     currentUser,
     loading,
     setUser,
+    setNotLogin,
     fetchUser,
     logout,
   }

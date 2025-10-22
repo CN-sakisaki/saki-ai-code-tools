@@ -1,23 +1,17 @@
+import { message } from 'ant-design-vue'
+
 const ACCESS_TOKEN_KEY = 'accessToken'
 
-const buildCookie = (key: string, value: string, maxAgeSeconds?: number) => {
-  const encodedValue = encodeURIComponent(value)
-  let cookie = `${key}=${encodedValue}; path=/`
-  if (maxAgeSeconds && Number.isFinite(maxAgeSeconds)) {
-    cookie += `; max-age=${Math.max(0, Math.floor(maxAgeSeconds))}`
-  }
-  document.cookie = cookie
-}
-
-export const setAccessToken = (token: string, maxAgeSeconds = 7 * 24 * 60 * 60) => {
-  buildCookie(ACCESS_TOKEN_KEY, token, maxAgeSeconds)
+export const setAccessToken = (token: string, maxAgeSeconds = 30 * 60) => {
+  clearAccessToken()
+  document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${maxAgeSeconds}`
 }
 
 export const getAccessToken = (): string | null => {
   const cookies = document.cookie ? document.cookie.split(';') : []
   for (const cookie of cookies) {
-    const [rawKey, ...rest] = cookie.trim().split('=')
-    if (rawKey === ACCESS_TOKEN_KEY) {
+    const [key, ...rest] = cookie.trim().split('=')
+    if (key === ACCESS_TOKEN_KEY) {
       return decodeURIComponent(rest.join('='))
     }
   }
@@ -28,11 +22,18 @@ export const clearAccessToken = () => {
   document.cookie = `${ACCESS_TOKEN_KEY}=; path=/; max-age=0`
 }
 
-export const hasAccessToken = () => Boolean(getAccessToken())
+/**
+ * 统一处理登录失效跳转逻辑
+ * @param msg 提示消息
+ */
+export const handleAuthExpired = (msg = '登录状态已过期，请重新登录') => {
+  // 当前就在登录页时，直接返回，不再重定向
+  if (window.location.pathname.startsWith('/user/login')) {
+    return
+  }
+  message.warning(msg)
+  clearAccessToken()
 
-export default {
-  setAccessToken,
-  getAccessToken,
-  clearAccessToken,
-  hasAccessToken,
+  const redirect = encodeURIComponent(window.location.href)
+  window.location.href = `/user/login?redirect=${redirect}`
 }

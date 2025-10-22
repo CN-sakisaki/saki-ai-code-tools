@@ -28,7 +28,7 @@ public class JwtUtils {
     @Value("${jwt.secret:saki-ai-code-tools-default-secret}")
     private String secret;
 
-    @Value("${jwt.access-expire-minutes:30}")
+    @Value("${jwt.access-expire-minutes:60}")
     private long accessExpireMinutes;
 
     @Value("${jwt.refresh-expire-days:7}")

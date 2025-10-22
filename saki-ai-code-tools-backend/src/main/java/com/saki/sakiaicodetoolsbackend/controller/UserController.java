@@ -2,6 +2,7 @@ package com.saki.sakiaicodetoolsbackend.controller;
 
 import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.annotation.AuthCheck;
+import com.saki.sakiaicodetoolsbackend.annotation.NoAuth;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
 import com.saki.sakiaicodetoolsbackend.constant.UserRoleConstant;
@@ -43,18 +44,21 @@ public class UserController {
     @Resource
     private UserService userService;
 
+    @NoAuth
     @PostMapping("/register")
     @Operation(description = "用户注册")
     public BaseResponse<Long> register(@RequestBody RegisterRequest request) {
         return ResultUtils.success(userService.register(request));
     }
 
+    @NoAuth
     @PostMapping("/login")
     @Operation(description = "用户登录")
     public BaseResponse<UserVO> login(@RequestBody LoginRequest request, HttpServletRequest httpServletRequest) {
         return ResultUtils.success(userService.login(request, httpServletRequest));
     }
 
+    @NoAuth
     @PostMapping("/login/send-email-code")
     @Operation(description = "发送邮箱登录验证码")
     public BaseResponse<Boolean> sendEmailLoginCode(@RequestBody LoginRequest request) {
@@ -62,6 +66,7 @@ public class UserController {
         return ResultUtils.success(Boolean.TRUE);
     }
 
+    @NoAuth
     @PostMapping("/token/refresh")
     @Operation(description = "刷新 AccessToken")
     public BaseResponse<String> refreshAccessToken(@RequestBody TokenRefreshRequest request) {

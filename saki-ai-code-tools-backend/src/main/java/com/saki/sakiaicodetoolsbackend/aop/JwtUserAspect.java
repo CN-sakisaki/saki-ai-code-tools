@@ -1,10 +1,14 @@
 package com.saki.sakiaicodetoolsbackend.aop;
 
 import com.saki.sakiaicodetoolsbackend.context.UserContext;
+import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
+import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.JwtException;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -55,9 +59,7 @@ public class JwtUserAspect {
      * </p>
      */
     @Pointcut("execution(* com.saki.sakiaicodetoolsbackend.controller..*(..)) " +
-            "&& !execution(* com.saki.sakiaicodetoolsbackend.controller.UserController.login(..)) " +
-            "&& !execution(* com.saki.sakiaicodetoolsbackend.controller.UserController.register(..))" +
-            "&& !execution(* com.saki.sakiaicodetoolsbackend.controller.UserController.sendEmailLoginCode(..)) ")
+            "&& !@annotation(com.saki.sakiaicodetoolsbackend.annotation.NoAuth)")
     public void controllerMethods() {
     }
 
@@ -81,38 +83,45 @@ public class JwtUserAspect {
      */
     @Around("controllerMethods()")
     public Object doAround(ProceedingJoinPoint joinPoint) throws Throwable {
-        // 获取当前 HTTP 请求
         HttpServletRequest request =
                 ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
 
-        // 解析 Authorization 请求头
         String authHeader = request.getHeader("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
 
-            try {
-                // 解析 JWT Token
+        try {
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                String token = authHeader.substring(7);
+                // 这里会抛出 ExpiredJwtException
                 Claims claims = jwtUtils.parseToken(token);
+
                 String userId = claims.getSubject();
                 String userRole = claims.get("userRole", String.class);
 
-                // 查询用户信息
                 User user = userMapper.selectOneById(Long.valueOf(userId));
+                if (user == null) {
+                    throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在或已删除");
+                }
 
-                // 保存当前用户上下文
                 UserContext.setUser(user);
                 log.debug("当前请求用户: id={}, role={}", userId, userRole);
-            } catch (Exception e) {
-                log.warn("JWT解析失败: {}", e.getMessage());
+            } else {
+                throw new BusinessException(ErrorCode.TOKEN_INVALID, "未提供身份凭证");
             }
-        }
 
-        try {
             // 执行目标方法
             return joinPoint.proceed();
+
+        } catch (ExpiredJwtException e) {
+            log.warn("Token 已过期: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.LOGIN_EXPIRED);
+        } catch (JwtException e) {
+            log.warn("Token 无效: {}", e.getMessage());
+            throw new BusinessException(ErrorCode.TOKEN_INVALID, "无效的身份凭证，请重新登录");
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "Token 参数错误");
         } finally {
-            // 清理上下文
             UserContext.clear();
         }
     }
+
 }
