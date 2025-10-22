@@ -5,10 +5,36 @@ import { clearAccessToken, getAccessToken, handleAuthExpired, setAccessToken } f
 import { refreshAccessToken } from '@/api/userController.ts'
 
 // 创建 Axios 实例
+const BIG_INT_REGEX = /([:\[,]\s*)(-?\d{16,})(?=[\s,}\]])/g
+
+function parseJSONWithBigInt(data: string) {
+  const sanitized = data.replace(
+    BIG_INT_REGEX,
+    (_match, prefix: string, value: string) => `${prefix}"${value}"`,
+  )
+  return JSON.parse(sanitized)
+}
+
 const appAxios = axios.create({
   baseURL: 'http://localhost:8123/api',
   timeout: 60000,
   withCredentials: true,
+  transformResponse: [
+    (data) => {
+      if (typeof data !== 'string' || !data) {
+        return data
+      }
+      try {
+        return parseJSONWithBigInt(data)
+      } catch {
+        try {
+          return JSON.parse(data)
+        } catch {
+          return data
+        }
+      }
+    },
+  ],
 })
 
 // 防重复刷新机制
@@ -34,7 +60,7 @@ function normalizeRequestUrl(url?: string): string {
   if (/^https?:\/\//.test(url)) {
     try {
       return new URL(url).pathname
-    } catch (error) {
+    } catch {
       return url
     }
   }
