@@ -7,7 +7,6 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { login, sendEmailLoginCode } from '@/api/userController'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { clearAccessToken, setAccessToken } from '@/utils/auth'
 import backgroundVideo from '@/assets/background.mp4'
 import logo from '@/assets/logo.png'
 
@@ -281,11 +280,6 @@ const handleSubmit = async (key: LoginTabKey) => {
     const payload = buildLoginPayload(key)
     const { data } = await login(payload)
     if (data.code === 0 && data.data) {
-      const token = data.data.accessToken
-      if (token) {
-        clearAccessToken()
-        setAccessToken(token)
-      }
       loginUserStore.setUser(data.data)
       message.success('登录成功')
 

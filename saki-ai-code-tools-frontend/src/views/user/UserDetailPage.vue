@@ -4,7 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
-import { baseAdminGetUserById, updateUser, uploadUserAvatarByAdmin } from '@/api/userController'
+import { uploadFile } from '@/api/fileController'
+import { baseAdminGetUserById, updateUser } from '@/api/userController'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,7 +167,7 @@ const handleAvatarChange: UploadProps['onChange'] = async (info) => {
 
   avatarUploading.value = true
   try {
-    const { data } = await uploadUserAvatarByAdmin(formData, { userId: targetId })
+    const { data } = await uploadFile(formData, { biz: 'user_avatar', userId: targetId })
     if (data.code === 0 && data.data) {
       formState.userAvatar = data.data
       message.success('头像上传成功')

@@ -78,11 +78,6 @@ declare namespace API {
     inviteCode?: string
   }
 
-  type TokenRefreshRequest = {
-    /** AccessToken */
-    accessToken?: string
-  }
-
   type User = {
     /** 主键 */
     id?: number | string
@@ -272,6 +267,5 @@ declare namespace API {
     editTime?: string
     createTime?: string
     updateTime?: string
-    accessToken?: string
   }
 }

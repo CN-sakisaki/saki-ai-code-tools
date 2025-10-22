@@ -82,20 +82,6 @@ export async function updateUser(body: API.UserUpdateRequest, options?: { [key: 
   })
 }
 
-/** 管理员上传用户头像 POST /user/admin/avatar/upload */
-export async function uploadUserAvatarByAdmin(
-  body: FormData,
-  params: { userId: number | string },
-  options?: { [key: string]: any },
-) {
-  return request<API.BaseResponseString>('/user/admin/avatar/upload', {
-    method: 'POST',
-    params,
-    data: body,
-    ...(options || {}),
-  })
-}
-
 /** 更新个人邮箱 PUT /user/email */
 export async function updateEmail(
   body: API.UserEmailUpdateRequest,
@@ -173,15 +159,6 @@ export async function updateProfile(
   })
 }
 
-/** 上传当前用户头像 POST /user/avatar/upload */
-export async function uploadCurrentUserAvatar(body: FormData, options?: { [key: string]: any }) {
-  return request<API.BaseResponseString>('/user/avatar/upload', {
-    method: 'POST',
-    data: body,
-    ...(options || {}),
-  })
-}
-
 /** 用户注册 POST /user/register */
 export async function register(body: API.RegisterRequest, options?: { [key: string]: any }) {
   return request<API.BaseResponseLong>('/user/register', {
@@ -209,17 +186,10 @@ export async function sendEmailCode(
   })
 }
 
-/** 刷新 AccessToken POST /user/token/refresh */
-export async function refreshAccessToken(
-  body: API.TokenRefreshRequest,
-  options?: { [key: string]: any },
-) {
-  return request<API.BaseResponseString>('/user/token/refresh', {
+/** 用户退出登录 POST /user/logout */
+export async function logout(options?: { [key: string]: any }) {
+  return request<API.BaseResponseBoolean>('/user/logout', {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    data: body,
     ...(options || {}),
   })
 }
