@@ -6,6 +6,8 @@ import NoAuth from '@/views/NoAuth.vue'
 import UserLogin from '@/views/user/UserLogin.vue'
 import UserRegister from '@/views/user/UserRegister.vue'
 import UserManagePage from '@/views/user/UserManagePage.vue'
+import UserDetailPage from '@/views/user/UserDetailPage.vue'
+import UserProfilePage from '@/views/user/UserProfilePage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -45,6 +47,26 @@ const router = createRouter({
         label: '用户管理',
         showInMenu: true,
         access: ACCESS_ENUM.ADMIN,
+      },
+    },
+    {
+      path: '/user/userManage/:id',
+      name: '用户详情',
+      component: UserDetailPage,
+      meta: {
+        label: '用户详情',
+        hideInMenu: true,
+        access: ACCESS_ENUM.ADMIN,
+      },
+    },
+    {
+      path: '/user/profile',
+      name: '个人中心',
+      component: UserProfilePage,
+      meta: {
+        label: '个人中心',
+        hideInMenu: true,
+        access: ACCESS_ENUM.USER,
       },
     },
     {

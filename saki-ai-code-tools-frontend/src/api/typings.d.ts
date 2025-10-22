@@ -256,6 +256,7 @@ declare namespace API {
   type UserVO = {
     id?: number
     userAccount?: string
+    userName?: string
     userEmail?: string
     userPhone?: string
     userAvatar?: string
