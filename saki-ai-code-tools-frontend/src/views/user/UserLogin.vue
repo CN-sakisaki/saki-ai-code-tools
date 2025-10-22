@@ -7,7 +7,7 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { login, sendEmailLoginCode } from '@/api/userController'
 import { useLoginUserStore } from '@/stores/loginUser'
-import { setAccessToken } from '@/utils/auth'
+import { clearAccessToken, setAccessToken } from '@/utils/auth'
 import backgroundVideo from '@/assets/background.mp4'
 import logo from '@/assets/logo.png'
 
@@ -283,6 +283,7 @@ const handleSubmit = async (key: LoginTabKey) => {
     if (data.code === 0 && data.data) {
       const token = data.data.accessToken
       if (token) {
+        clearAccessToken()
         setAccessToken(token)
       }
       loginUserStore.setUser(data.data)
