@@ -19,6 +19,7 @@ import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
+import com.saki.sakiaicodetoolsbackend.manager.CosManager;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
@@ -45,21 +46,31 @@ import com.saki.sakiaicodetoolsbackend.utils.VipTimeUtils;
 import io.jsonwebtoken.Claims;
 import jakarta.mail.MessagingException;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
+import java.util.Locale;
 
 /**
  * 用户服务实现类，负责用户登录、令牌管理、邮件验证码发送等核心业务逻辑。
@@ -76,6 +87,11 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private static final String SORT_ORDER_ASC = "ascend";
     private static final String DEFAULT_SORT_COLUMN = "create_time";
+
+    private static final long MAX_AVATAR_SIZE = 5L * 1024 * 1024;
+    private static final Set<String> ALLOWED_IMAGE_EXTENSIONS = Set.of("png", "jpg", "jpeg", "gif", "webp");
+    private static final DateTimeFormatter AVATAR_PATH_FORMATTER = DateTimeFormatter.ofPattern("yyyy/MM/dd");
+    private static final String AVATAR_KEY_PREFIX = "user/avatar";
 
     private static final Map<String, String> SORT_FIELD_MAP = Map.ofEntries(
             Map.entry("id", UserFieldConstants.ID),
@@ -104,6 +120,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     private final UserMapper userMapper;
 
+    private final CosManager cosManager;
+
 
     // ===================== 登录相关方法 =====================
 
@@ -116,7 +134,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @throws BusinessException 当请求参数为空、登录类型不支持或认证失败时抛出
      */
     @Override
-    public UserVO login(LoginRequest request, HttpServletRequest httpServletRequest) {
+    public UserVO login(LoginRequest request, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
         // 验证请求参数
         validateRequest(request, "请求参数不能为空");
 
@@ -128,7 +146,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         User user = loginStrategyFactory.getStrategy(loginType).authenticate(request);
 
         // 构建登录结果
-        return buildLoginResult(user, httpServletRequest);
+        UserVO userVO = buildLoginResult(user, httpServletRequest);
+        writeAccessTokenCookie(userVO.getAccessToken(), httpServletResponse);
+        return userVO;
     }
 
     /**
@@ -481,6 +501,81 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return Boolean.TRUE;
     }
 
+    // ===================== 头像上传相关方法 =====================
+
+    @Override
+    public String uploadAvatar(MultipartFile file, Long targetUserId) {
+        ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_MISSING, "头像文件不能为空");
+        ThrowUtils.throwIf(file.getSize() > MAX_AVATAR_SIZE, ErrorCode.PARAMS_ERROR, "头像文件大小不能超过5MB");
+
+        String contentType = StrUtil.nullToDefault(file.getContentType(), StrUtil.EMPTY);
+        ThrowUtils.throwIf(!StrUtil.startWithIgnoreCase(contentType, "image/"), ErrorCode.PARAMS_ERROR, "仅支持上传图片文件");
+
+        Long resolvedUserId = resolveTargetUserId(targetUserId);
+        String extension = resolveFileExtension(file);
+        String objectKey = buildAvatarObjectKey(resolvedUserId, extension);
+
+        File tempFile = null;
+        try {
+            tempFile = createTempFile(file, extension);
+            String url = cosManager.uploadFile(objectKey, tempFile);
+            ThrowUtils.throwIf(StrUtil.isBlank(url), ErrorCode.EXTERNAL_SERVICE_ERROR, "上传头像失败");
+            log.info("用户ID={} 上传头像成功，COS Key={}", resolvedUserId, objectKey);
+            return url;
+        } catch (IOException ex) {
+            log.error("用户ID={} 上传头像失败: {}", resolvedUserId, ex.getMessage(), ex);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传头像失败，请稍后重试");
+        } finally {
+            deleteTempFileQuietly(tempFile);
+        }
+    }
+
+    private Long resolveTargetUserId(Long targetUserId) {
+        if (targetUserId == null) {
+            User currentUser = getCurrentUserOrThrow();
+            ThrowUtils.throwIf(currentUser.getId() == null, ErrorCode.SYSTEM_ERROR, "当前用户信息异常");
+            return currentUser.getId();
+        }
+        User targetUser = getById(targetUserId);
+        ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "目标用户不存在");
+        return targetUser.getId();
+    }
+
+    private String resolveFileExtension(MultipartFile file) {
+        String extension = StringUtils.getFilenameExtension(file.getOriginalFilename());
+        if (StrUtil.isBlank(extension)) {
+            String contentType = file.getContentType();
+            if (StrUtil.isNotBlank(contentType) && contentType.contains("/")) {
+                extension = contentType.substring(contentType.indexOf('/') + 1);
+            }
+        }
+        ThrowUtils.throwIf(StrUtil.isBlank(extension), ErrorCode.PARAMS_ERROR, "无法识别的图片格式");
+        String normalized = extension.replaceAll("[^A-Za-z0-9]", "").toLowerCase(Locale.ROOT);
+        if (StrUtil.equals(normalized, "jpeg")) {
+            normalized = "jpg";
+        }
+        ThrowUtils.throwIf(!ALLOWED_IMAGE_EXTENSIONS.contains(normalized), ErrorCode.PARAMS_ERROR, "暂不支持该图片格式");
+        return normalized;
+    }
+
+    private String buildAvatarObjectKey(Long userId, String extension) {
+        String datePath = LocalDate.now().format(AVATAR_PATH_FORMATTER);
+        String randomSegment = UUID.randomUUID().toString().replace("-", "");
+        return String.format("%s/%d/%s/%s.%s", AVATAR_KEY_PREFIX, userId, datePath, randomSegment, extension);
+    }
+
+    private File createTempFile(MultipartFile file, String extension) throws IOException {
+        File tempFile = File.createTempFile("avatar-" + System.currentTimeMillis(), "." + extension);
+        file.transferTo(tempFile);
+        return tempFile;
+    }
+
+    private void deleteTempFileQuietly(File tempFile) {
+        if (tempFile != null && tempFile.exists() && !tempFile.delete()) {
+            log.warn("删除临时头像文件失败: {}", tempFile.getAbsolutePath());
+        }
+    }
+
     /**
      * 判断指定字段值的用户是否已存在。
      * <p>
@@ -661,7 +756,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @throws BusinessException 当请求参数为空、访问令牌无效或刷新令牌不存在时抛出
      */
     @Override
-    public String refreshAccessToken(TokenRefreshRequest request) {
+    public String refreshAccessToken(TokenRefreshRequest request, HttpServletResponse httpServletResponse) {
         // 验证请求参数
         validateRequest(request, "请求参数不能为空");
         String accessToken = request.getAccessToken();
@@ -690,7 +785,9 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                         .orElse(UserConstants.DEFAULT_USER_ROLE));
 
         // 生成新地访问令牌
-        return generateAndStoreTokens(userId, userRole).getAccessToken();
+        String newToken = generateAndStoreTokens(userId, userRole).getAccessToken();
+        writeAccessTokenCookie(newToken, httpServletResponse);
+        return newToken;
     }
 
     // ===================== 辅助方法 =====================
@@ -742,6 +839,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         UserVO vo = new UserVO();
         vo.setAccessToken(accessToken);
         return vo;
+    }
+
+    private void writeAccessTokenCookie(String accessToken, HttpServletResponse httpServletResponse) {
+        if (httpServletResponse == null || StrUtil.isBlank(accessToken)) {
+            return;
+        }
+        ResponseCookie cookie = ResponseCookie.from(AuthConstants.ACCESS_TOKEN_COOKIE_NAME, accessToken)
+                .httpOnly(false)
+                .secure(false)
+                .path(AuthConstants.AUTH_COOKIE_PATH)
+                .maxAge(Duration.ofMillis(jwtUtils.getAccessTokenExpireMillis()))
+                .sameSite("Lax")
+                .build();
+        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     /**

@@ -1,22 +1,18 @@
 import { message } from 'ant-design-vue'
 
 const ACCESS_TOKEN_KEY = 'accessToken'
-const ACCESS_TOKEN_EXPIRE_KEY = 'accessTokenExpireAt'
 
 const isBrowser = typeof window !== 'undefined'
 
-export const setAccessToken = (token: string, maxAgeSeconds = 30 * 60) => {
-  if (!isBrowser) return
-
-  const expiresAt = Date.now() + maxAgeSeconds * 1000
-  localStorage.setItem(ACCESS_TOKEN_KEY, token)
-  localStorage.setItem(ACCESS_TOKEN_EXPIRE_KEY, expiresAt.toString())
-
-  // 兼容旧逻辑，继续写入 Cookie，方便服务端读取
-  document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${maxAgeSeconds}`
+const buildCookieAttributes = (maxAgeSeconds: number) => {
+  const segments = [`path=/`, `max-age=${maxAgeSeconds}`, 'SameSite=Lax']
+  if (isBrowser && window.location.protocol === 'https:') {
+    segments.push('Secure')
+  }
+  return segments.join('; ')
 }
 
-const readTokenFromCookie = () => {
+const readTokenFromCookie = (): string | null => {
   if (!isBrowser) return null
   const cookies = document.cookie ? document.cookie.split(';') : []
   for (const cookie of cookies) {
@@ -28,22 +24,16 @@ const readTokenFromCookie = () => {
   return null
 }
 
-export const getAccessToken = (): string | null => {
-  if (!isBrowser) return null
-
-  const token = localStorage.getItem(ACCESS_TOKEN_KEY)
-  if (token) {
-    return token
-  }
-
-  return readTokenFromCookie()
+export const setAccessToken = (token: string, maxAgeSeconds = 60 * 60) => {
+  if (!isBrowser) return
+  document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; ${buildCookieAttributes(maxAgeSeconds)}`
 }
+
+export const getAccessToken = (): string | null => readTokenFromCookie()
 
 export const clearAccessToken = () => {
   if (!isBrowser) return
-  localStorage.removeItem(ACCESS_TOKEN_KEY)
-  localStorage.removeItem(ACCESS_TOKEN_EXPIRE_KEY)
-  document.cookie = `${ACCESS_TOKEN_KEY}=; path=/; max-age=0`
+  document.cookie = `${ACCESS_TOKEN_KEY}=; ${buildCookieAttributes(0)}`
 }
 
 /**
@@ -51,7 +41,7 @@ export const clearAccessToken = () => {
  * @param msg 提示消息
  */
 export const handleAuthExpired = (msg = '登录状态已过期，请重新登录') => {
-  // 当前就在登录页时，直接返回，不再重定向
+  if (!isBrowser) return
   if (window.location.pathname.startsWith('/user/login')) {
     return
   }

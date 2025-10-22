@@ -51,6 +51,16 @@ public final class AuthConstants {
      */
     public static final long PHONE_CODE_EXPIRE_MINUTES = 5L;
 
+    /**
+     * AccessToken 在 Cookie 中的键名。
+     */
+    public static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
+
+    /**
+     * 认证相关 Cookie 的默认 Path。
+     */
+    public static final String AUTH_COOKIE_PATH = "/";
+
     // ===================== 键构建方法 =====================
 
     /**

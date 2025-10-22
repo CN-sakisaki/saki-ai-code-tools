@@ -82,6 +82,20 @@ export async function updateUser(body: API.UserUpdateRequest, options?: { [key: 
   })
 }
 
+/** 管理员上传用户头像 POST /user/admin/avatar/upload */
+export async function uploadUserAvatarByAdmin(
+  body: FormData,
+  params: { userId: number | string },
+  options?: { [key: string]: any },
+) {
+  return request<API.BaseResponseString>('/user/admin/avatar/upload', {
+    method: 'POST',
+    params,
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 更新个人邮箱 PUT /user/email */
 export async function updateEmail(
   body: API.UserEmailUpdateRequest,
@@ -154,6 +168,15 @@ export async function updateProfile(
     headers: {
       'Content-Type': 'application/json',
     },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 上传当前用户头像 POST /user/avatar/upload */
+export async function uploadCurrentUserAvatar(body: FormData, options?: { [key: string]: any }) {
+  return request<API.BaseResponseString>('/user/avatar/upload', {
+    method: 'POST',
     data: body,
     ...(options || {}),
   })
