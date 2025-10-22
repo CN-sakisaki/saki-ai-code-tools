@@ -47,6 +47,16 @@ jwt:
   access-expire-minutes: 30
   refresh-expire-days: 7
 
+# 添加 COS 对象存储配置（需要从腾讯云获取）
+cos:
+  client:
+    host: https://saki-ai-code-tools-1323098272.cos.ap-guangzhou.myqcloud.com
+    secretId:
+    secretKey:
+    region: ap-guangzhou
+    bucket: saki-ai-code-tools-1323098272
+
+
 # 自定义配置，用于发送时动态取出发件人邮箱
 mail:
   mailFrom: ${spring.mail.username}

@@ -65,11 +65,7 @@ const avatarInitial = computed(() => {
 })
 
 const syncFormState = (user: API.User | API.UserVO | null) => {
-  formState.id = user?.id
-    ? typeof user.id === 'string'
-      ? user.id
-      : user.id.toString()
-    : undefined
+  formState.id = user?.id ? (typeof user.id === 'string' ? user.id : user.id.toString()) : undefined
   formState.userAccount = user?.userAccount ?? ''
   formState.userName = user?.userName ?? ''
   formState.userEmail = user?.userEmail ?? ''
@@ -192,7 +188,6 @@ onMounted(() => {
       @back="() => router.back()"
     >
       <template #extra>
-        <a-button @click="() => router.back()">返回</a-button>
         <a-button type="primary" :disabled="!detail" @click="openEditModal">编辑信息</a-button>
       </template>
     </a-page-header>
@@ -212,7 +207,9 @@ onMounted(() => {
             <a-descriptions-item label="名称">{{ detail?.userName ?? '—' }}</a-descriptions-item>
             <a-descriptions-item label="邮箱">{{ detail?.userEmail ?? '—' }}</a-descriptions-item>
             <a-descriptions-item label="手机号">{{ detail?.userPhone ?? '—' }}</a-descriptions-item>
-            <a-descriptions-item label="个人简介">{{ detail?.userProfile ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="个人简介">{{
+              detail?.userProfile ?? '—'
+            }}</a-descriptions-item>
           </a-descriptions>
         </a-card>
 
@@ -229,21 +226,33 @@ onMounted(() => {
               </a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="会员等级">
-              <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
+              <a-tag :color="isVip ? 'gold' : 'default'">{{
+                isVip ? 'VIP 会员' : '普通用户'
+              }}</a-tag>
             </a-descriptions-item>
             <a-descriptions-item v-if="isVip" label="会员有效期">
               {{ formatDate(detail?.vipStartTime) }} ~ {{ formatDate(detail?.vipEndTime) }}
             </a-descriptions-item>
-            <a-descriptions-item label="邀请码">{{ detail?.inviteCode ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="邀请码">{{
+              detail?.inviteCode ?? '—'
+            }}</a-descriptions-item>
           </a-descriptions>
         </a-card>
 
         <a-card title="时间信息" class="user-detail__card">
           <a-descriptions :column="1" size="middle">
-            <a-descriptions-item label="最近登录时间">{{ formatDate(detail?.lastLoginTime) }}</a-descriptions-item>
-            <a-descriptions-item label="最近登录 IP">{{ detail?.lastLoginIp ?? '—' }}</a-descriptions-item>
-            <a-descriptions-item label="最后编辑时间">{{ formatDate(detail?.editTime) }}</a-descriptions-item>
-            <a-descriptions-item label="创建时间">{{ formatDate(detail?.createTime) }}</a-descriptions-item>
+            <a-descriptions-item label="最近登录时间">{{
+              formatDate(detail?.lastLoginTime)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="最近登录 IP">{{
+              detail?.lastLoginIp ?? '—'
+            }}</a-descriptions-item>
+            <a-descriptions-item label="最后编辑时间">{{
+              formatDate(detail?.editTime)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{
+              formatDate(detail?.createTime)
+            }}</a-descriptions-item>
           </a-descriptions>
         </a-card>
       </a-space>
