@@ -1,6 +1,6 @@
 declare namespace API {
   type baseAdminGetUserByIdParams = {
-    id: number
+    id: number | string
   }
 
   type BaseResponseBoolean = {
@@ -11,7 +11,7 @@ declare namespace API {
 
   type BaseResponseLong = {
     code?: number
-    data?: number
+    data?: number | string
     message?: string
   }
 
@@ -40,7 +40,7 @@ declare namespace API {
   }
 
   type baseUserGetUserByIdParams = {
-    id: number
+    id: number | string
   }
 
   type LoginRequest = {
@@ -85,7 +85,7 @@ declare namespace API {
 
   type User = {
     /** 主键 */
-    id?: number
+    id?: number | string
     /** 用户账号 */
     userAccount?: string
     /** 账号密码 */
@@ -152,7 +152,7 @@ declare namespace API {
   }
 
   type UserDeleteRequest = {
-    ids?: number[]
+    ids?: (number | string)[]
   }
 
   type UserEmailGetCodeRequest = {
@@ -162,7 +162,7 @@ declare namespace API {
 
   type UserEmailUpdateRequest = {
     /** 主键 */
-    id?: number
+    id?: number | string
     /** 账号密码 */
     userPassword?: string
     /** 新邮箱地址 */
@@ -173,7 +173,7 @@ declare namespace API {
 
   type UserPhoneUpdateRequest = {
     /** 主键 */
-    id?: number
+    id?: number | string
     /** 账号密码 */
     userPassword?: string
     /** 新手机号 */
@@ -184,7 +184,7 @@ declare namespace API {
 
   type UserProfileUpdateRequest = {
     /** 主键 */
-    id?: number
+    id?: number | string
     /** 用户名 */
     userName?: string
     /** 用户头像 */
@@ -228,7 +228,7 @@ declare namespace API {
 
   type UserUpdateRequest = {
     /** 主键 */
-    id?: number
+    id?: number | string
     /** 用户账号 */
     userAccount?: string
     /** 用户名 */
@@ -254,7 +254,7 @@ declare namespace API {
   }
 
   type UserVO = {
-    id?: number
+    id?: number | string
     userAccount?: string
     userName?: string
     userEmail?: string

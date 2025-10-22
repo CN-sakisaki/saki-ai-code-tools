@@ -185,9 +185,10 @@ const handleDelete = (record: API.User) => {
 
 const goDetail = (record: API.User) => {
   if (!record.id) return
+  const targetId = typeof record.id === 'string' ? record.id : record.id.toString()
   router.push({
     name: '用户详情',
-    params: { id: record.id },
+    params: { id: targetId },
   })
 }
 
