@@ -15,7 +15,6 @@ import com.mybatisflex.spring.service.impl.ServiceImpl;
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.constant.UserConstants;
 import com.saki.sakiaicodetoolsbackend.constant.UserFieldConstants;
-import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
@@ -27,31 +26,27 @@ import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
+import com.saki.sakiaicodetoolsbackend.model.enums.UserRoleEnum;
 import com.saki.sakiaicodetoolsbackend.model.enums.VipStatusEnum;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.UserService;
 import com.saki.sakiaicodetoolsbackend.service.login.LoginStrategyFactory;
 import com.saki.sakiaicodetoolsbackend.service.mail.MailService;
 import com.saki.sakiaicodetoolsbackend.utils.IpUtils;
-import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
 import com.saki.sakiaicodetoolsbackend.utils.QueryWrapperUtils;
 import com.saki.sakiaicodetoolsbackend.utils.VipTimeUtils;
-import io.jsonwebtoken.Claims;
 import jakarta.mail.MessagingException;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
+import jakarta.servlet.http.HttpSession;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -109,9 +104,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     /** 登录策略工厂，用于根据不同登录类型选择认证策略 */
     private final LoginStrategyFactory loginStrategyFactory;
 
-    /** JWT工具类，用于令牌的生成和解析 */
-    private final JwtUtils jwtUtils;
-
     /** Redis模板，用于存储刷新令牌和验证码 */
     private final StringRedisTemplate stringRedisTemplate;
 
@@ -134,7 +126,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @throws BusinessException 当请求参数为空、登录类型不支持或认证失败时抛出
      */
     @Override
-    public UserVO login(LoginRequest request, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) {
+    public UserVO login(LoginRequest request, HttpServletRequest httpServletRequest) {
         // 验证请求参数
         validateRequest(request, "请求参数不能为空");
 
@@ -147,7 +139,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
         // 构建登录结果
         UserVO userVO = buildLoginResult(user, httpServletRequest);
-        writeAccessTokenCookie(userVO.getAccessToken(), httpServletResponse);
         return userVO;
     }
 
@@ -158,7 +149,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @return 新用户的主键 ID
      */
     @Override
-    public Long register(RegisterRequest request) {
+    public Long register(RegisterRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "注册请求不能为空");
 
         String userAccount = StrUtil.trim(request.getUserAccount());
@@ -226,7 +217,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Long createUser(UserAddRequest request) {
+    public Long createUser(UserAddRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "新增用户请求不能为空");
         // 账号与密码的非空与长度校验（均需≥8位）
         String userAccount = StrUtil.trimToNull(request.getUserAccount());
@@ -283,7 +274,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean deleteUsers(UserDeleteRequest request) {
+    public Boolean deleteUsers(UserDeleteRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "删除用户请求不能为空");
         List<Long> ids = request.getIds();
         ThrowUtils.throwIf(CollUtil.isEmpty(ids), ErrorCode.PARAMS_MISSING, "待删除的用户ID不能为空");
@@ -333,7 +324,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean updateUser(UserUpdateRequest request) {
+    public Boolean updateUser(UserUpdateRequest request, HttpServletRequest httpServletRequest) {
         // 参数非空校验
         validateRequest(request, "更新用户请求不能为空");
         Long id = request.getId();
@@ -354,7 +345,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public Page<User> listUsersByPage(UserQueryRequest request) {
+    public Page<User> listUsersByPage(UserQueryRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "分页查询请求不能为空");
 
         Page<User> page = new Page<>(request.getPageNum(), request.getPageSize());
@@ -387,7 +378,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public User getUserDetail(Long id) {
+    public User getUserDetail(Long id, HttpServletRequest httpServletRequest) {
         ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
         User user = getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
@@ -395,7 +386,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
-    public UserVO getUserVODetail(Long id) {
+    public UserVO getUserVODetail(Long id, HttpServletRequest httpServletRequest) {
         ThrowUtils.throwIf(id == null, ErrorCode.PARAMS_MISSING, "用户ID不能为空");
         User user = getById(id);
         ThrowUtils.throwIf(user == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在");
@@ -408,23 +399,27 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean updateCurrentUserProfile(UserProfileUpdateRequest request) {
+    public Boolean updateCurrentUserProfile(UserProfileUpdateRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "个人信息更新请求不能为空");
-        User currentUser = getCurrentUserOrThrow();
+        User sessionUser = getSessionUserOrThrow(httpServletRequest);
+        User dbUser = getById(sessionUser.getId());
+        ThrowUtils.throwIf(dbUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在或已注销");
 
-        BeanUtil.copyProperties(request, currentUser, CopyOptions.create().ignoreNullValue().ignoreError());
+        BeanUtil.copyProperties(request, dbUser, CopyOptions.create().ignoreNullValue().ignoreError());
 
-        boolean updated = updateById(currentUser);
+        boolean updated = updateById(dbUser);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新个人信息失败");
-        refreshUserContext(currentUser);
+        refreshSessionUser(httpServletRequest, dbUser);
         return Boolean.TRUE;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean updateCurrentUserEmail(UserEmailUpdateRequest request) {
+    public Boolean updateCurrentUserEmail(UserEmailUpdateRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "邮箱更新请求不能为空");
-        User currentUser = getCurrentUserOrThrow();
+        User sessionUser = getSessionUserOrThrow(httpServletRequest);
+        User dbUser = getById(sessionUser.getId());
+        ThrowUtils.throwIf(dbUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在或已注销");
 
         String rawPassword = StrUtil.trimToNull(request.getUserPassword());
         String newEmail = StrUtil.trimToNull(request.getNewEmail());
@@ -434,26 +429,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ThrowUtils.throwIf(StrUtil.isBlank(newEmail), ErrorCode.PARAMS_MISSING, "新邮箱不能为空");
         ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_MISSING, "验证码不能为空");
         ThrowUtils.throwIf(!Validator.isEmail(newEmail), ErrorCode.PARAMS_ERROR, "不支持的邮箱格式");
-        ThrowUtils.throwIf(StrUtil.equalsIgnoreCase(newEmail, currentUser.getUserEmail()), ErrorCode.PARAMS_ERROR, "新邮箱不能与当前邮箱相同");
-        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_EMAIL, newEmail, currentUser.getId()), ErrorCode.DATA_ALREADY_EXISTS, "邮箱已被占用");
+        ThrowUtils.throwIf(StrUtil.equalsIgnoreCase(newEmail, dbUser.getUserEmail()), ErrorCode.PARAMS_ERROR, "新邮箱不能与当前邮箱相同");
+        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_EMAIL, newEmail, dbUser.getId()), ErrorCode.DATA_ALREADY_EXISTS, "邮箱已被占用");
 
-        verifyPassword(currentUser, rawPassword);
+        verifyPassword(dbUser, rawPassword);
         String redisKey = AuthConstants.buildEmailCodeKey(newEmail);
         validateAndConsumeCode(redisKey, code, "邮箱验证码已过期");
 
-        currentUser.setUserEmail(newEmail);
+        dbUser.setUserEmail(newEmail);
 
-        boolean updated = updateById(currentUser);
+        boolean updated = updateById(dbUser);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新邮箱失败");
-        refreshUserContext(currentUser);
+        refreshSessionUser(httpServletRequest, dbUser);
         return Boolean.TRUE;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request) {
+    public Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request, HttpServletRequest httpServletRequest) {
         validateRequest(request, "手机号更新请求不能为空");
-        User currentUser = getCurrentUserOrThrow();
+        User sessionUser = getSessionUserOrThrow(httpServletRequest);
+        User dbUser = getById(sessionUser.getId());
+        ThrowUtils.throwIf(dbUser == null, ErrorCode.NOT_FOUND_ERROR, "用户不存在或已注销");
 
         String rawPassword = StrUtil.trimToNull(request.getUserPassword());
         String newPhone = StrUtil.trimToNull(request.getNewPhone());
@@ -462,22 +459,22 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         ThrowUtils.throwIf(StrUtil.isBlank(rawPassword), ErrorCode.PARAMS_MISSING, "密码不能为空");
         ThrowUtils.throwIf(StrUtil.isBlank(newPhone), ErrorCode.PARAMS_MISSING, "新手机号不能为空");
         ThrowUtils.throwIf(StrUtil.isBlank(code), ErrorCode.PARAMS_MISSING, "验证码不能为空");
-        ThrowUtils.throwIf(!Validator.isEmail(newPhone), ErrorCode.PARAMS_ERROR, "不支持的手机号格式");
-        ThrowUtils.throwIf(StrUtil.equals(newPhone, currentUser.getUserPhone()), ErrorCode.PARAMS_ERROR, "新手机号不能与当前手机号相同");
-        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_PHONE, newPhone, currentUser.getId()), ErrorCode.DATA_ALREADY_EXISTS, "手机号已被占用");
+        ThrowUtils.throwIf(!Validator.isMobile(newPhone), ErrorCode.PARAMS_ERROR, "不支持的手机号格式");
+        ThrowUtils.throwIf(StrUtil.equals(newPhone, dbUser.getUserPhone()), ErrorCode.PARAMS_ERROR, "新手机号不能与当前手机号相同");
+        ThrowUtils.throwIf(existsByColumn(UserFieldConstants.USER_PHONE, newPhone, dbUser.getId()), ErrorCode.DATA_ALREADY_EXISTS, "手机号已被占用");
 
-        verifyPassword(currentUser, rawPassword);
+        verifyPassword(dbUser, rawPassword);
         String redisKey = AuthConstants.buildPhoneCodeKey(newPhone);
         validateAndConsumeCode(redisKey, code, "短信验证码已过期");
-        currentUser.setUserPhone(newPhone);
-        boolean updated = updateById(currentUser);
+        dbUser.setUserPhone(newPhone);
+        boolean updated = updateById(dbUser);
         ThrowUtils.throwIf(!updated, ErrorCode.OPERATION_ERROR, "更新手机号失败");
-        refreshUserContext(currentUser);
+        refreshSessionUser(httpServletRequest, dbUser);
         return Boolean.TRUE;
     }
 
     @Override
-    public Boolean sendEmailCode(UserEmailGetCodeRequest request) {
+    public Boolean sendEmailCode(UserEmailGetCodeRequest request, HttpServletRequest httpServletRequest) {
         String email = StrUtil.trimToNull(request.getEmail());
         ThrowUtils.throwIf(StrUtil.isBlank(email), ErrorCode.PARAMS_MISSING, "邮箱不能为空");
         ThrowUtils.throwIf(!Validator.isEmail(email), ErrorCode.PARAMS_ERROR, "邮箱格式不正确");
@@ -501,17 +498,28 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return Boolean.TRUE;
     }
 
+    @Override
+    public void logout(HttpServletRequest httpServletRequest) {
+        if (httpServletRequest == null) {
+            return;
+        }
+        HttpSession session = httpServletRequest.getSession(false);
+        if (session != null) {
+            session.invalidate();
+        }
+    }
+
     // ===================== 头像上传相关方法 =====================
 
     @Override
-    public String uploadAvatar(MultipartFile file, Long targetUserId) {
+    public String uploadAvatar(MultipartFile file, Long targetUserId, HttpServletRequest httpServletRequest) {
         ThrowUtils.throwIf(file == null || file.isEmpty(), ErrorCode.PARAMS_MISSING, "头像文件不能为空");
         ThrowUtils.throwIf(file.getSize() > MAX_AVATAR_SIZE, ErrorCode.PARAMS_ERROR, "头像文件大小不能超过5MB");
 
         String contentType = StrUtil.nullToDefault(file.getContentType(), StrUtil.EMPTY);
         ThrowUtils.throwIf(!StrUtil.startWithIgnoreCase(contentType, "image/"), ErrorCode.PARAMS_ERROR, "仅支持上传图片文件");
 
-        Long resolvedUserId = resolveTargetUserId(targetUserId);
+        Long resolvedUserId = resolveTargetUserId(targetUserId, httpServletRequest);
         String extension = resolveFileExtension(file);
         String objectKey = buildAvatarObjectKey(resolvedUserId, extension);
 
@@ -530,12 +538,17 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
     }
 
-    private Long resolveTargetUserId(Long targetUserId) {
-        if (targetUserId == null) {
-            User currentUser = getCurrentUserOrThrow();
-            ThrowUtils.throwIf(currentUser.getId() == null, ErrorCode.SYSTEM_ERROR, "当前用户信息异常");
+    private Long resolveTargetUserId(Long targetUserId, HttpServletRequest httpServletRequest) {
+        User currentUser = getSessionUserOrThrow(httpServletRequest);
+        ThrowUtils.throwIf(currentUser.getId() == null, ErrorCode.SYSTEM_ERROR, "当前用户信息异常");
+
+        if (targetUserId == null || targetUserId.equals(currentUser.getId())) {
             return currentUser.getId();
         }
+
+        boolean isAdmin = UserRoleEnum.ADMIN.getValue().equals(currentUser.getUserRole());
+        ThrowUtils.throwIf(!isAdmin, ErrorCode.NO_AUTH_ERROR, "无权限为其他用户上传头像");
+
         User targetUser = getById(targetUserId);
         ThrowUtils.throwIf(targetUser == null, ErrorCode.NOT_FOUND_ERROR, "目标用户不存在");
         return targetUser.getId();
@@ -679,10 +692,56 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
 
-    private User getCurrentUserOrThrow() {
-        User currentUser = UserContext.getUser();
+    private User getSessionUserOrThrow(HttpServletRequest httpServletRequest) {
+        User currentUser = getSessionUser(httpServletRequest);
         ThrowUtils.throwIf(currentUser == null, ErrorCode.NOT_LOGIN_ERROR, "未登录或会话已失效");
         return currentUser;
+    }
+
+    private User getSessionUser(HttpServletRequest httpServletRequest) {
+        if (httpServletRequest == null) {
+            return null;
+        }
+        HttpSession session = httpServletRequest.getSession(false);
+        if (session == null) {
+            return null;
+        }
+        Object attribute = session.getAttribute(UserConstants.USER_LOGIN_STATE);
+        if (attribute instanceof User user) {
+            return user;
+        }
+        return null;
+    }
+
+    private void saveLoginState(HttpServletRequest httpServletRequest, User user) {
+        if (httpServletRequest == null || user == null) {
+            return;
+        }
+        HttpSession session = httpServletRequest.getSession(true);
+        session.setAttribute(UserConstants.USER_LOGIN_STATE, buildSafeUser(user));
+        session.setMaxInactiveInterval(UserConstants.SESSION_TIMEOUT_SECONDS);
+    }
+
+    private void refreshSessionUser(HttpServletRequest httpServletRequest, User user) {
+        if (httpServletRequest == null || user == null) {
+            return;
+        }
+        HttpSession session = httpServletRequest.getSession(false);
+        if (session == null) {
+            return;
+        }
+        session.setAttribute(UserConstants.USER_LOGIN_STATE, buildSafeUser(user));
+    }
+
+    private User buildSafeUser(User user) {
+        if (user == null) {
+            return null;
+        }
+        User safeUser = new User();
+        BeanUtil.copyProperties(user, safeUser, CopyOptions.create().ignoreNullValue().ignoreError());
+        safeUser.setUserPassword(null);
+        safeUser.setUserSalt(null);
+        return safeUser;
     }
 
     private void verifyPassword(User user, String rawPassword) {
@@ -698,13 +757,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         stringRedisTemplate.delete(redisKey);
     }
 
-    private void refreshUserContext(User currentUser) {
-        if (currentUser == null) {
-            return;
-        }
-        UserContext.setUser(currentUser);
-    }
-
     // ===================== 邮箱验证码相关方法 =====================
 
     /**
@@ -715,7 +767,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * @throws BusinessException 当邮箱为空、用户不存在或邮件发送失败时抛出
      */
     @Override
-    public void sendEmailLoginCode(LoginRequest request) {
+    public void sendEmailLoginCode(LoginRequest request, HttpServletRequest httpServletRequest) {
         // 验证请求参数
         validateRequest(request, "请求参数不能为空");
         String email = request.getUserEmail();
@@ -745,51 +797,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         }
     }
 
-    // ===================== Token刷新相关方法 =====================
-
-    /**
-     * 刷新访问令牌。
-     * 使用刷新令牌验证用户身份，生成新地访问令牌。
-     *
-     * @param request 令牌刷新请求对象，必须包含访问令牌
-     * @return 新地访问令牌
-     * @throws BusinessException 当请求参数为空、访问令牌无效或刷新令牌不存在时抛出
-     */
-    @Override
-    public String refreshAccessToken(TokenRefreshRequest request, HttpServletResponse httpServletResponse) {
-        // 验证请求参数
-        validateRequest(request, "请求参数不能为空");
-        String accessToken = request.getAccessToken();
-        ThrowUtils.throwIf(StrUtil.isBlank(accessToken), ErrorCode.PARAMS_MISSING, "AccessToken 不能为空");
-
-        // 解析访问令牌（允许过期）
-        Claims claims = jwtUtils.parseTokenAllowExpired(accessToken);
-
-        // 从subject中解析用户ID
-        Long userId = parseUserId(claims.getSubject());
-        String refreshTokenKey = AuthConstants.buildRefreshTokenKey(userId);
-
-        // 从Redis获取刷新令牌
-        String refreshToken = stringRedisTemplate.opsForValue().get(refreshTokenKey);
-
-        // 验证刷新令牌是否存在且有效
-        ThrowUtils.throwIf(StrUtil.isBlank(refreshToken) || !jwtUtils.isTokenValid(refreshToken),
-                ErrorCode.LOGIN_EXPIRED, "登录状态已过期，请重新登录");
-
-        // 获取用户角色：优先从令牌中获取，其次从数据库获取，最后使用默认角色
-        String userRole = Optional.ofNullable(claims.get("userRole", String.class))
-                .filter(StrUtil::isNotBlank)
-                .orElseGet(() -> Optional.ofNullable(getById(userId))
-                        .map(User::getUserRole)
-                        .filter(StrUtil::isNotBlank)
-                        .orElse(UserConstants.DEFAULT_USER_ROLE));
-
-        // 生成新地访问令牌
-        String newToken = generateAndStoreTokens(userId, userRole).getAccessToken();
-        writeAccessTokenCookie(newToken, httpServletResponse);
-        return newToken;
-    }
-
     // ===================== 辅助方法 =====================
 
     /**
@@ -805,54 +812,16 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 检查用户信息
         ThrowUtils.throwIf(user == null, ErrorCode.SYSTEM_ERROR, "用户信息为空");
 
-        // 使用用户角色或默认角色
-        String role = StrUtil.blankToDefault(user.getUserRole(), UserConstants.DEFAULT_USER_ROLE);
-
-        // 生成令牌
-        UserVO vo = generateAndStoreTokens(user.getId(), role);
-
         // 更新最后登录信息
         updateLastLoginInfo(user, httpServletRequest);
 
+        // 保存登录态
+        saveLoginState(httpServletRequest, user);
+
         // 复制用户基本信息
-        vo.copyUserInfoFrom(user);
-        return vo;
-    }
-
-    /**
-     * 生成并存储令牌。
-     * 生成访问令牌和刷新令牌，将刷新令牌存储到Redis。
-     *
-     * @param userId 用户ID
-     * @param role 用户角色
-     * @return 包含访问令牌的用户视图对象
-     */
-    private UserVO generateAndStoreTokens(Long userId, String role) {
-        // 生成访问令牌和刷新令牌
-        String accessToken = jwtUtils.generateAccessToken(userId, role);
-        String refreshToken = jwtUtils.generateRefreshToken(userId, role);
-
-        // 将刷新令牌存储到Redis
-        stringRedisTemplate.opsForValue().set(AuthConstants.buildRefreshTokenKey(userId), refreshToken, jwtUtils.getRefreshTokenExpireDuration());
-
-        // 组装返回结果
         UserVO vo = new UserVO();
-        vo.setAccessToken(accessToken);
+        vo.copyUserInfoFrom(buildSafeUser(user));
         return vo;
-    }
-
-    private void writeAccessTokenCookie(String accessToken, HttpServletResponse httpServletResponse) {
-        if (httpServletResponse == null || StrUtil.isBlank(accessToken)) {
-            return;
-        }
-        ResponseCookie cookie = ResponseCookie.from(AuthConstants.ACCESS_TOKEN_COOKIE_NAME, accessToken)
-                .httpOnly(false)
-                .secure(false)
-                .path(AuthConstants.AUTH_COOKIE_PATH)
-                .maxAge(Duration.ofMillis(jwtUtils.getAccessTokenExpireMillis()))
-                .sameSite("Lax")
-                .build();
-        httpServletResponse.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
     }
 
     /**
@@ -928,22 +897,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     private void validateRequest(Object request, String message) {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_MISSING, message);
-    }
-
-    /**
-     * 解析用户ID。
-     * 将JWT主题字符串转换为Long类型的用户ID。
-     *
-     * @param subject JWT主题（用户ID字符串）
-     * @return 用户ID
-     * @throws BusinessException 当用户ID格式不正确时抛出
-     */
-    private Long parseUserId(String subject) {
-        try {
-            return Long.valueOf(subject);
-        } catch (NumberFormatException ex) {
-            throw new BusinessException(ErrorCode.TOKEN_INVALID, "非法的用户标识");
-        }
     }
 
     /**

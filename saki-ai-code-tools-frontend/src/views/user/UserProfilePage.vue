@@ -5,6 +5,7 @@ import { useRouter } from 'vue-router'
 import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
+import { uploadFile } from '@/api/fileController'
 import {
   baseAdminGetUserById,
   baseUserGetUserById,
@@ -12,7 +13,6 @@ import {
   updateEmail,
   updatePhone,
   updateProfile,
-  uploadCurrentUserAvatar,
 } from '@/api/userController'
 import ACCESS_ENUM from '@/access/accessEnum'
 import { useLoginUserStore } from '@/stores/loginUser'
@@ -361,7 +361,7 @@ const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
 
   profileAvatarUploading.value = true
   try {
-    const { data } = await uploadCurrentUserAvatar(formData)
+    const { data } = await uploadFile(formData, { biz: 'user_avatar' })
     if (data.code === 0 && data.data) {
       profileForm.userAvatar = data.data
       message.success('头像上传成功')

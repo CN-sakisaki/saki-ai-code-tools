@@ -20,12 +20,6 @@ public final class AuthConstants {
     // ===================== Redis键前缀常量 =====================
 
     /**
-     * 刷新令牌在Redis中的键前缀。
-     * 完整键格式：login:refresh:{userId}
-     */
-    public static final String REFRESH_TOKEN_KEY_PREFIX = "login:refresh:";
-
-    /**
      * 邮箱登录验证码在Redis中的键前缀。
      * 完整键格式：login:code:email:{email}
      */
@@ -51,28 +45,7 @@ public final class AuthConstants {
      */
     public static final long PHONE_CODE_EXPIRE_MINUTES = 5L;
 
-    /**
-     * AccessToken 在 Cookie 中的键名。
-     */
-    public static final String ACCESS_TOKEN_COOKIE_NAME = "accessToken";
-
-    /**
-     * 认证相关 Cookie 的默认 Path。
-     */
-    public static final String AUTH_COOKIE_PATH = "/";
-
     // ===================== 键构建方法 =====================
-
-    /**
-     * 构建刷新令牌的Redis存储键。
-     *
-     * @param userId 用户ID，不能为null
-     * @return 格式化的Redis键，如："login:refresh:123"
-     * @throws IllegalArgumentException 如果userId为null
-     */
-    public static String buildRefreshTokenKey(Long userId) {
-        return REFRESH_TOKEN_KEY_PREFIX + userId;
-    }
 
     /**
      * 构建邮箱验证码的Redis存储键。

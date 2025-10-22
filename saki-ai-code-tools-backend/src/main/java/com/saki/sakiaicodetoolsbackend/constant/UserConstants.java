@@ -76,4 +76,15 @@ public final class UserConstants {
      * 用于密码加密的盐值的字节数。
      */
     public static final int USER_SALT_BYTE_LENGTH = 8;
+
+    /**
+     * Session 中存储登录用户的键名。
+     */
+    public static final String USER_LOGIN_STATE = "USER_LOGIN_STATE";
+
+    /**
+     * 登录 Session 默认过期时间（秒）。
+     * 30 天。
+     */
+    public static final int SESSION_TIMEOUT_SECONDS = 30 * 24 * 60 * 60;
 }

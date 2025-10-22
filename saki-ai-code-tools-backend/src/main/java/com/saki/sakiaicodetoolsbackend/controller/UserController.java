@@ -5,8 +5,8 @@ import com.saki.sakiaicodetoolsbackend.annotation.AuthCheck;
 import com.saki.sakiaicodetoolsbackend.annotation.NoAuth;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
+import com.saki.sakiaicodetoolsbackend.constant.UserConstants;
 import com.saki.sakiaicodetoolsbackend.constant.UserRoleConstant;
-import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
@@ -15,7 +15,6 @@ import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
@@ -23,15 +22,12 @@ import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.UserService;
-import com.saki.sakiaicodetoolsbackend.service.mail.MailService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.MediaType;
+import jakarta.servlet.http.HttpSession;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户表 控制层。
@@ -50,33 +46,26 @@ public class UserController {
     @NoAuth
     @PostMapping("/register")
     @Operation(description = "用户注册")
-    public BaseResponse<Long> register(@RequestBody RegisterRequest request) {
-        return ResultUtils.success(userService.register(request));
+    public BaseResponse<Long> register(@RequestBody RegisterRequest request,
+                                       HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.register(request, httpServletRequest));
     }
 
     @NoAuth
     @PostMapping("/login")
     @Operation(description = "用户登录")
     public BaseResponse<UserVO> login(@RequestBody LoginRequest request,
-                                      HttpServletRequest httpServletRequest,
-                                      HttpServletResponse httpServletResponse) {
-        return ResultUtils.success(userService.login(request, httpServletRequest, httpServletResponse));
+                                      HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.login(request, httpServletRequest));
     }
 
     @NoAuth
     @PostMapping("/login/send-email-code")
     @Operation(description = "发送邮箱登录验证码")
-    public BaseResponse<Boolean> sendEmailLoginCode(@RequestBody LoginRequest request) {
-        userService.sendEmailLoginCode(request);
+    public BaseResponse<Boolean> sendEmailLoginCode(@RequestBody LoginRequest request,
+                                                    HttpServletRequest httpServletRequest) {
+        userService.sendEmailLoginCode(request, httpServletRequest);
         return ResultUtils.success(Boolean.TRUE);
-    }
-
-    @NoAuth
-    @PostMapping("/token/refresh")
-    @Operation(description = "刷新 AccessToken")
-    public BaseResponse<String> refreshAccessToken(@RequestBody TokenRefreshRequest request,
-                                                   HttpServletResponse httpServletResponse) {
-        return ResultUtils.success(userService.refreshAccessToken(request, httpServletResponse));
     }
 
     /**
@@ -84,9 +73,11 @@ public class UserController {
      */
     @GetMapping("/get/info")
     @Operation(description = "获取当前登录用户")
-    public BaseResponse<UserVO> getUserInfo() {
-        User currentUser = UserContext.getUser();
-        ThrowUtils.throwIf(currentUser == null, ErrorCode.NOT_FOUND_ERROR, "未登录或用户不存在");
+    public BaseResponse<UserVO> getUserInfo(HttpServletRequest httpServletRequest) {
+        HttpSession session = httpServletRequest.getSession(false);
+        ThrowUtils.throwIf(session == null, ErrorCode.NOT_LOGIN_ERROR, "未登录或会话已失效");
+        Object attribute = session.getAttribute(UserConstants.USER_LOGIN_STATE);
+        ThrowUtils.throwIf(!(attribute instanceof User currentUser), ErrorCode.NOT_LOGIN_ERROR, "未登录或会话已失效");
         UserVO vo = new UserVO();
         vo.copyUserInfoFrom(currentUser);
         return ResultUtils.success(vo);
@@ -98,8 +89,9 @@ public class UserController {
     @PostMapping("/admin/add")
     @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员创建用户")
-    public BaseResponse<Long> addUser(@RequestBody UserAddRequest request) {
-        return ResultUtils.success(userService.createUser(request));
+    public BaseResponse<Long> addUser(@RequestBody UserAddRequest request,
+                                      HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.createUser(request, httpServletRequest));
     }
 
     /**
@@ -108,8 +100,9 @@ public class UserController {
     @PostMapping("/admin/delete")
     @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员删除用户")
-    public BaseResponse<Boolean> deleteUsers(@RequestBody UserDeleteRequest request) {
-        return ResultUtils.success(userService.deleteUsers(request));
+    public BaseResponse<Boolean> deleteUsers(@RequestBody UserDeleteRequest request,
+                                             HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.deleteUsers(request, httpServletRequest));
     }
 
     /**
@@ -118,19 +111,9 @@ public class UserController {
     @PutMapping("/admin/update")
     @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员更新用户信息")
-    public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest request) {
-        return ResultUtils.success(userService.updateUser(request));
-    }
-
-    /**
-     * 管理员上传或替换指定用户的头像。
-     */
-    @PostMapping(value = "/admin/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
-    @Operation(description = "管理员上传用户头像")
-    public BaseResponse<String> uploadUserAvatarByAdmin(@RequestPart("file") MultipartFile file,
-                                                        @RequestParam("userId") Long userId) {
-        return ResultUtils.success(userService.uploadAvatar(file, userId));
+    public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest request,
+                                            HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.updateUser(request, httpServletRequest));
     }
 
     /**
@@ -139,8 +122,9 @@ public class UserController {
     @PostMapping("/admin/list/page")
     @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员分页获取用户列表")
-    public BaseResponse<Page<User>> listUsersByPage(@RequestBody UserQueryRequest request) {
-        return ResultUtils.success(userService.listUsersByPage(request));
+    public BaseResponse<Page<User>> listUsersByPage(@RequestBody UserQueryRequest request,
+                                                    HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.listUsersByPage(request, httpServletRequest));
     }
 
     /**
@@ -149,8 +133,9 @@ public class UserController {
     @GetMapping("/admin/{id}")
     @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
     @Operation(description = "管理员根据 ID 获取用户详情")
-    public BaseResponse<User> baseAdminGetUserById(@PathVariable Long id) {
-        return ResultUtils.success(userService.getUserDetail(id));
+    public BaseResponse<User> baseAdminGetUserById(@PathVariable Long id,
+                                                   HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.getUserDetail(id, httpServletRequest));
     }
 
     /**
@@ -159,8 +144,9 @@ public class UserController {
     @GetMapping("/{id}")
     @AuthCheck(mustRole = UserRoleConstant.USER_ROLE)
     @Operation(description = "用户根据 ID 获取用户详情")
-    public BaseResponse<UserVO> baseUserGetUserById(@PathVariable Long id) {
-        return ResultUtils.success(userService.getUserVODetail(id));
+    public BaseResponse<UserVO> baseUserGetUserById(@PathVariable Long id,
+                                                    HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.getUserVODetail(id, httpServletRequest));
     }
 
     /**
@@ -168,8 +154,9 @@ public class UserController {
      */
     @PutMapping("/profile")
     @Operation(description = "更新个人资料")
-    public BaseResponse<Boolean> updateProfile(@RequestBody UserProfileUpdateRequest request) {
-        return ResultUtils.success(userService.updateCurrentUserProfile(request));
+    public BaseResponse<Boolean> updateProfile(@RequestBody UserProfileUpdateRequest request,
+                                               HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.updateCurrentUserProfile(request, httpServletRequest));
     }
 
     /**
@@ -177,8 +164,9 @@ public class UserController {
      */
     @PutMapping("/email")
     @Operation(description = "更新个人邮箱")
-    public BaseResponse<Boolean> updateEmail(@RequestBody UserEmailUpdateRequest request) {
-        return ResultUtils.success(userService.updateCurrentUserEmail(request));
+    public BaseResponse<Boolean> updateEmail(@RequestBody UserEmailUpdateRequest request,
+                                             HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.updateCurrentUserEmail(request, httpServletRequest));
     }
 
     /**
@@ -186,32 +174,31 @@ public class UserController {
      */
     @PutMapping("/phone")
     @Operation(description = "更新个人手机号")
-    public BaseResponse<Boolean> updatePhone(@RequestBody UserPhoneUpdateRequest request) {
-        return ResultUtils.success(userService.updateCurrentUserPhone(request));
+    public BaseResponse<Boolean> updatePhone(@RequestBody UserPhoneUpdateRequest request,
+                                             HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.updateCurrentUserPhone(request, httpServletRequest));
     }
 
     /**
      * 邮箱验证码发送接口。
      * <p>
-     * 用户输入邮箱后，系统生成随机验证码，
-     * 通过 {@link MailService} 发送邮件，
-     * 并将验证码缓存至 Redis，设置有效期。
+     * 用户输入邮箱后，系统生成随机验证码并发送邮件，
+     * 同时将验证码缓存至 Redis，设置有效期。
      * </p>
      * @param request 用户输入的邮箱地址
      * @return 通用响应结果
      */
     @PostMapping("/sendEmailCode")
-    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailGetCodeRequest request) {
-        return ResultUtils.success(userService.sendEmailCode(request));
+    public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailGetCodeRequest request,
+                                               HttpServletRequest httpServletRequest) {
+        return ResultUtils.success(userService.sendEmailCode(request, httpServletRequest));
     }
 
-    /**
-     * 当前用户上传头像。
-     */
-    @PostMapping(value = "/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(description = "上传当前用户头像")
-    public BaseResponse<String> uploadCurrentUserAvatar(@RequestPart("file") MultipartFile file) {
-        return ResultUtils.success(userService.uploadAvatar(file, null));
+    @PostMapping("/logout")
+    @Operation(description = "退出登录")
+    public BaseResponse<Boolean> logout(HttpServletRequest httpServletRequest) {
+        userService.logout(httpServletRequest);
+        return ResultUtils.success(Boolean.TRUE);
     }
 
 }
