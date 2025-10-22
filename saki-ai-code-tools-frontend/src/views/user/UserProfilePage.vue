@@ -1,7 +1,8 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
-import type { FormInstance } from 'ant-design-vue'
+import { useRouter } from 'vue-router'
+import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
 import {
@@ -10,10 +11,12 @@ import {
   sendEmailCode,
   updateEmail,
   updatePhone,
+  updateProfile,
 } from '@/api/userController'
 import ACCESS_ENUM from '@/access/accessEnum'
 import { useLoginUserStore } from '@/stores/loginUser'
 
+const router = useRouter()
 const loginUserStore = useLoginUserStore()
 const { currentUser } = storeToRefs(loginUserStore)
 
@@ -23,14 +26,17 @@ const profile = ref<(API.User & API.UserVO) | null>(null)
 
 const phoneModalVisible = ref(false)
 const emailModalVisible = ref(false)
+const editModalVisible = ref(false)
 const phoneCodeLoading = ref(false)
 const emailCodeLoading = ref(false)
 const phoneCountdown = ref(0)
 const emailCountdown = ref(0)
 const phoneFormRef = ref<FormInstance>()
 const emailFormRef = ref<FormInstance>()
+const profileFormRef = ref<FormInstance>()
 const updatingPhone = ref(false)
 const updatingEmail = ref(false)
+const updatingProfile = ref(false)
 let phoneTimer: ReturnType<typeof setInterval> | undefined
 let emailTimer: ReturnType<typeof setInterval> | undefined
 
@@ -46,6 +52,13 @@ const emailForm = reactive<API.UserEmailUpdateRequest>({
   userPassword: '',
   newEmail: '',
   emailCode: '',
+})
+
+const profileForm = reactive<API.UserProfileUpdateRequest>({
+  id: undefined,
+  userName: '',
+  userAvatar: '',
+  userProfile: '',
 })
 
 const normalizeId = (id?: string | number | null) => {
@@ -109,6 +122,11 @@ const formatDate = (value?: string) => {
 
 const isVip = computed(() => profile.value?.isVip === 1)
 
+const avatarInitial = computed(() => {
+  const source = profile.value?.userName || profile.value?.userAccount || '用'
+  return source.charAt(0).toUpperCase()
+})
+
 const loadProfile = async () => {
   if (!currentUser.value?.id) {
     return
@@ -149,10 +167,18 @@ const resetEmailForm = () => {
   emailForm.newEmail = ''
 }
 
+const resetProfileForm = () => {
+  profileForm.id = normalizeId(currentUser.value?.id)
+  profileForm.userName = profile.value?.userName ?? ''
+  profileForm.userAvatar = profile.value?.userAvatar ?? ''
+  profileForm.userProfile = profile.value?.userProfile ?? ''
+}
+
 const syncFormIds = () => {
   const id = normalizeId(currentUser.value?.id)
   phoneForm.id = id
   emailForm.id = id
+  profileForm.id = id
 }
 
 watch(
@@ -208,6 +234,19 @@ const closeEmailModal = () => {
   emailFormRef.value?.resetFields()
   resetEmailForm()
   clearCountdown('email')
+}
+
+const openEditModal = () => {
+  if (!profile.value) return
+  resetProfileForm()
+  editModalVisible.value = true
+  nextTick(() => {
+    profileFormRef.value?.clearValidate?.()
+  })
+}
+
+const closeEditModal = () => {
+  editModalVisible.value = false
 }
 
 const handleSendPhoneCode = () => {
@@ -301,75 +340,189 @@ const emailRules = {
   emailCode: [{ required: true, message: '请输入验证码' }],
   userPassword: [{ required: true, message: '请输入密码' }],
 }
+
+const profileRules = {
+  userName: [{ required: true, message: '请输入昵称' }],
+}
+
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string) || '')
+    reader.onerror = () => reject(new Error('读取文件失败'))
+    reader.readAsDataURL(file)
+  })
+
+const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
+  const file = info.file.originFileObj as File | undefined
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    message.error('请选择图片文件')
+    return
+  }
+  try {
+    const preview = await fileToDataUrl(file)
+    profileForm.userAvatar = preview
+  } catch {
+    message.error('读取图片失败，请重试')
+  }
+}
+
+const clearProfileAvatar = () => {
+  profileForm.userAvatar = ''
+}
+
+const handleUpdateProfile = async () => {
+  try {
+    await profileFormRef.value?.validate()
+  } catch {
+    return
+  }
+
+  updatingProfile.value = true
+  try {
+    const payload: API.UserProfileUpdateRequest = {
+      ...profileForm,
+      id: profileForm.id ?? normalizeId(currentUser.value?.id),
+    }
+    const { data } = await updateProfile(payload)
+    if (data.code === 0) {
+      message.success('个人信息已更新')
+      closeEditModal()
+      await loginUserStore.fetchUser()
+      await loadProfile()
+    } else {
+      message.error(data.message ?? '更新个人信息失败')
+    }
+  } catch {
+    message.error('更新个人信息失败')
+  } finally {
+    updatingProfile.value = false
+  }
+}
 </script>
 
 <template>
   <div class="user-profile">
-    <a-page-header :ghost="false" title="个人中心" sub-title="管理个人信息" />
+    <a-page-header
+      :ghost="false"
+      title="个人中心"
+      sub-title="管理个人信息"
+      @back="() => router.back()"
+    >
+      <template #extra>
+        <a-button @click="() => router.back()">返回</a-button>
+        <a-button type="primary" :disabled="!profile" @click="openEditModal">编辑信息</a-button>
+      </template>
+    </a-page-header>
     <a-spin :spinning="loading">
-      <a-row :gutter="24" class="user-profile__content">
-        <a-col :xs="24" :lg="12">
-          <a-card title="基础信息" class="user-profile__card">
-            <a-descriptions :column="1" bordered size="middle">
-              <a-descriptions-item label="账号">{{ profile?.userAccount ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="昵称">{{ profile?.userName ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="角色">
-                <a-tag :color="profile?.userRole === 'admin' ? 'magenta' : 'blue'">
-                  {{ profile?.userRole === 'admin' ? '管理员' : '用户' }}
-                </a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item label="状态">
-                <a-tag :color="profile?.userStatus === 1 ? 'green' : 'red'">
-                  {{ profile?.userStatus === 1 ? '正常' : '禁用' }}
-                </a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item label="会员状态">
-                <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
-              </a-descriptions-item>
-              <a-descriptions-item v-if="isVip" label="会员有效期">
-                {{ formatDate(profile?.vipStartTime) }} ~ {{ formatDate(profile?.vipEndTime) }}
-              </a-descriptions-item>
-              <a-descriptions-item label="邀请码">{{ profile?.inviteCode ?? '—' }}</a-descriptions-item>
-            </a-descriptions>
-          </a-card>
-        </a-col>
+      <a-space direction="vertical" size="large" class="user-profile__content">
+        <a-card class="user-profile__card">
+          <template #title>基础信息</template>
+          <template #extra>
+            <a-avatar :size="64" :src="profile?.userAvatar">
+              <span v-if="!profile?.userAvatar">{{ avatarInitial }}</span>
+            </a-avatar>
+          </template>
+          <a-descriptions :column="1" bordered size="middle">
+            <a-descriptions-item label="账号">{{ profile?.userAccount ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="昵称">{{ profile?.userName ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="角色">
+              <a-tag :color="profile?.userRole === 'admin' ? 'magenta' : 'blue'">
+                {{ profile?.userRole === 'admin' ? '管理员' : '用户' }}
+              </a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <a-tag :color="profile?.userStatus === 1 ? 'green' : 'red'">
+                {{ profile?.userStatus === 1 ? '正常' : '禁用' }}
+              </a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="会员状态">
+              <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item v-if="isVip" label="会员有效期">
+              {{ formatDate(profile?.vipStartTime) }} ~ {{ formatDate(profile?.vipEndTime) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="邀请码">{{ profile?.inviteCode ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="个人简介">
+              <span class="user-profile__bio">{{ profile?.userProfile || '—' }}</span>
+            </a-descriptions-item>
+          </a-descriptions>
+        </a-card>
 
-        <a-col :xs="24" :lg="12">
-          <a-space direction="vertical" size="large" style="width: 100%">
-            <a-card title="账号安全" class="user-profile__card">
-              <div class="user-profile__security-list">
-                <div class="user-profile__security-item">
-                  <div>
-                    <div class="user-profile__security-title">绑定手机号</div>
-                    <div class="user-profile__security-desc">{{ profile?.userPhone ?? '未绑定' }}</div>
-                  </div>
-                  <a-button type="default" @click="openPhoneModal">更改手机号</a-button>
-                </div>
-                <div class="user-profile__security-item">
-                  <div>
-                    <div class="user-profile__security-title">绑定邮箱</div>
-                    <div class="user-profile__security-desc">{{ profile?.userEmail ?? '未绑定' }}</div>
-                  </div>
-                  <a-button type="default" @click="openEmailModal">更改邮箱</a-button>
-                </div>
+        <a-card title="账号安全" class="user-profile__card">
+          <div class="user-profile__security-list">
+            <div class="user-profile__security-item">
+              <div>
+                <div class="user-profile__security-title">绑定手机号</div>
+                <div class="user-profile__security-desc">{{ profile?.userPhone ?? '未绑定' }}</div>
               </div>
-              <a-typography-paragraph type="secondary" class="user-profile__security-tip">
-                更换手机号或邮箱时需要通过验证码验证身份，请确保可以正常接收验证码。
-              </a-typography-paragraph>
-            </a-card>
+              <a-button type="default" @click="openPhoneModal">更改手机号</a-button>
+            </div>
+            <div class="user-profile__security-item">
+              <div>
+                <div class="user-profile__security-title">绑定邮箱</div>
+                <div class="user-profile__security-desc">{{ profile?.userEmail ?? '未绑定' }}</div>
+              </div>
+              <a-button type="default" @click="openEmailModal">更改邮箱</a-button>
+            </div>
+          </div>
+          <a-typography-paragraph type="secondary" class="user-profile__security-tip">
+            更换手机号或邮箱时需要通过验证码验证身份，请确保可以正常接收验证码。
+          </a-typography-paragraph>
+        </a-card>
 
-            <a-card title="登录记录" class="user-profile__card">
-              <a-descriptions :column="1" size="middle">
-                <a-descriptions-item label="最近登录">{{ formatDate(profile?.lastLoginTime) }}</a-descriptions-item>
-                <a-descriptions-item label="最近登录 IP">{{ profile?.lastLoginIp ?? '—' }}</a-descriptions-item>
-                <a-descriptions-item label="创建时间">{{ formatDate(profile?.createTime) }}</a-descriptions-item>
-                <a-descriptions-item label="更新时间">{{ formatDate(profile?.updateTime) }}</a-descriptions-item>
-              </a-descriptions>
-            </a-card>
-          </a-space>
-        </a-col>
-      </a-row>
+        <a-card title="登录与时间信息" class="user-profile__card">
+          <a-descriptions :column="1" size="middle">
+            <a-descriptions-item label="最近登录">{{ formatDate(profile?.lastLoginTime) }}</a-descriptions-item>
+            <a-descriptions-item label="最近登录 IP">{{ profile?.lastLoginIp ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="最后编辑时间">{{ formatDate(profile?.editTime) }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{ formatDate(profile?.createTime) }}</a-descriptions-item>
+          </a-descriptions>
+        </a-card>
+      </a-space>
     </a-spin>
+
+    <a-modal
+      v-model:open="editModalVisible"
+      title="编辑个人信息"
+      ok-text="保存"
+      cancel-text="取消"
+      :confirm-loading="updatingProfile"
+      destroy-on-close
+      @ok="handleUpdateProfile"
+      @cancel="closeEditModal"
+    >
+      <a-form ref="profileFormRef" :model="profileForm" :rules="profileRules" layout="vertical">
+        <a-form-item label="头像">
+          <div class="user-profile__avatar-upload">
+            <a-avatar :size="96" :src="profileForm.userAvatar">
+              <span v-if="!profileForm.userAvatar">{{ avatarInitial }}</span>
+            </a-avatar>
+            <div class="user-profile__avatar-actions">
+              <a-upload
+                accept="image/*"
+                :show-upload-list="false"
+                :before-upload="() => false"
+                @change="handleProfileAvatarChange"
+              >
+                <a-button>上传头像</a-button>
+              </a-upload>
+              <a-input v-model:value="profileForm.userAvatar" placeholder="或粘贴头像图片地址" />
+              <a-button v-if="profileForm.userAvatar" type="link" danger @click="clearProfileAvatar">
+                移除头像
+              </a-button>
+            </div>
+          </div>
+        </a-form-item>
+        <a-form-item label="昵称" name="userName">
+          <a-input v-model:value="profileForm.userName" placeholder="请输入昵称" />
+        </a-form-item>
+        <a-form-item label="个人简介" name="userProfile">
+          <a-textarea v-model:value="profileForm.userProfile" :rows="4" placeholder="请输入个人简介" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:open="phoneModalVisible"
@@ -460,10 +613,17 @@ const emailRules = {
 
 .user-profile__content {
   margin-top: 16px;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
 }
 
 .user-profile__card {
   background: #ffffff;
+}
+
+.user-profile__bio {
+  white-space: pre-wrap;
 }
 
 .user-profile__security-list {
@@ -498,5 +658,18 @@ const emailRules = {
 
 :deep(.ant-descriptions-item-label) {
   width: 120px;
+}
+
+.user-profile__avatar-upload {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.user-profile__avatar-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>
