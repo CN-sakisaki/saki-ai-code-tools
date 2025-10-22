@@ -113,7 +113,7 @@ public class JwtUserAspect {
 
         } catch (ExpiredJwtException e) {
             log.warn("Token 已过期: {}", e.getMessage());
-            throw new BusinessException(ErrorCode.NOT_LOGIN_ERROR, "登录状态已过期，请重新登录");
+            throw new BusinessException(ErrorCode.LOGIN_EXPIRED);
         } catch (JwtException e) {
             log.warn("Token 无效: {}", e.getMessage());
             throw new BusinessException(ErrorCode.TOKEN_INVALID, "无效的身份凭证，请重新登录");
