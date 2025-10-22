@@ -34,7 +34,7 @@ const formState = reactive<API.UserUpdateRequest>({
 
 const formRules = {
   userAccount: [{ required: true, message: '请输入账号' }],
-  userName: [{ required: true, message: '请输入姓名' }],
+  userName: [{ required: true, message: '请输入名称' }],
   userRole: [{ required: true, message: '请选择角色' }],
 }
 
@@ -151,7 +151,7 @@ onMounted(() => {
             <a-descriptions :column="1" bordered size="small">
               <a-descriptions-item label="用户ID">{{ detail?.id ?? '—' }}</a-descriptions-item>
               <a-descriptions-item label="账号">{{ detail?.userAccount ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="姓名">{{ detail?.userName ?? '—' }}</a-descriptions-item>
+              <a-descriptions-item label="名称">{{ detail?.userName ?? '—' }}</a-descriptions-item>
               <a-descriptions-item label="角色">
                 <a-tag :color="detail?.userRole === 'admin' ? 'magenta' : 'blue'">
                   {{ detail?.userRole === 'admin' ? '管理员' : '用户' }}
@@ -178,12 +178,18 @@ onMounted(() => {
 
         <a-col :xs="24" :lg="16">
           <a-card title="编辑信息" class="user-detail__card">
-            <a-form ref="formRef" :model="formState" :rules="formRules" label-col="{ span: 6 }" wrapper-col="{ span: 16 }">
+            <a-form
+              ref="formRef"
+              :model="formState"
+              :rules="formRules"
+              :label-col="{ span: 6 }"
+              :wrapper-col="{ span: 16 }"
+            >
               <a-form-item label="用户账号" name="userAccount">
                 <a-input v-model:value="formState.userAccount" placeholder="请输入账号" />
               </a-form-item>
-              <a-form-item label="用户姓名" name="userName">
-                <a-input v-model:value="formState.userName" placeholder="请输入姓名" />
+              <a-form-item label="用户名称" name="userName">
+                <a-input v-model:value="formState.userName" placeholder="请输入名称" />
               </a-form-item>
               <a-form-item label="用户邮箱" name="userEmail">
                 <a-input v-model:value="formState.userEmail" placeholder="请输入邮箱" />
