@@ -44,7 +44,7 @@ knife4j:
 
 jwt:
   secret: VBW4ris/Gm2W+PqxqPe+zJ0UuqolPIxCFCh63g8TsII=
-  access-expire-minutes: 180
+  access-expire-minutes: 360
   refresh-expire-days: 7
 
 # 自定义配置，用于发送时动态取出发件人邮箱
