@@ -185,9 +185,10 @@ const handleDelete = (record: API.User) => {
 
 const goDetail = (record: API.User) => {
   if (!record.id) return
+  const targetId = typeof record.id === 'string' ? record.id : record.id.toString()
   router.push({
     name: '用户详情',
-    params: { id: record.id },
+    params: { id: targetId },
   })
 }
 
@@ -203,8 +204,8 @@ onMounted(() => {
         <a-form-item label="账号">
           <a-input v-model:value="queryForm.userAccount" allow-clear placeholder="请输入账号" />
         </a-form-item>
-        <a-form-item label="姓名">
-          <a-input v-model:value="queryForm.userName" allow-clear placeholder="请输入姓名" />
+        <a-form-item label="名称">
+          <a-input v-model:value="queryForm.userName" allow-clear placeholder="请输入名称" />
         </a-form-item>
         <a-form-item label="邮箱">
           <a-input v-model:value="queryForm.userEmail" allow-clear placeholder="请输入邮箱" />
@@ -255,7 +256,7 @@ onMounted(() => {
       >
         <a-table-column title="ID" dataIndex="id" key="id" width="80" />
         <a-table-column title="账号" dataIndex="userAccount" key="userAccount" />
-        <a-table-column title="姓名" dataIndex="userName" key="userName" />
+        <a-table-column title="名称" dataIndex="userName" key="userName" />
         <a-table-column title="邮箱" dataIndex="userEmail" key="userEmail" />
         <a-table-column title="手机号" dataIndex="userPhone" key="userPhone" />
         <a-table-column title="角色" dataIndex="userRole" key="userRole">
@@ -298,15 +299,21 @@ onMounted(() => {
       @cancel="closeAddModal"
       @ok="submitAddForm"
     >
-      <a-form ref="addFormRef" :model="addForm" :rules="addFormRules" label-col="{ span: 6 }" wrapper-col="{ span: 16 }">
+      <a-form
+        ref="addFormRef"
+        :model="addForm"
+        :rules="addFormRules"
+        :label-col="{ span: 6 }"
+        :wrapper-col="{ span: 16 }"
+      >
         <a-form-item label="账号" name="userAccount">
           <a-input v-model:value="addForm.userAccount" placeholder="请输入账号" />
         </a-form-item>
         <a-form-item label="密码" name="userPassword">
           <a-input-password v-model:value="addForm.userPassword" placeholder="请输入密码" />
         </a-form-item>
-        <a-form-item label="姓名" name="userName">
-          <a-input v-model:value="addForm.userName" placeholder="请输入姓名" />
+        <a-form-item label="名称" name="userName">
+          <a-input v-model:value="addForm.userName" placeholder="请输入名称" />
         </a-form-item>
         <a-form-item label="邮箱" name="userEmail">
           <a-input v-model:value="addForm.userEmail" placeholder="请输入邮箱" />
