@@ -2,7 +2,7 @@ import { message } from 'ant-design-vue'
 
 const ACCESS_TOKEN_KEY = 'accessToken'
 
-export const setAccessToken = (token: string, maxAgeSeconds = 6 * 60 * 60) => {
+export const setAccessToken = (token: string, maxAgeSeconds = 60 * 60) => {
   document.cookie = `${ACCESS_TOKEN_KEY}=${encodeURIComponent(token)}; path=/; max-age=${maxAgeSeconds}`
 }
 
@@ -17,7 +17,7 @@ export const getAccessToken = (): string | null => {
   return null
 }
 
-export const clearAllToken = () => {
+export const clearAccessToken = () => {
   document.cookie = `${ACCESS_TOKEN_KEY}=; path=/; max-age=0`
 }
 
@@ -27,7 +27,7 @@ export const clearAllToken = () => {
  */
 export const handleAuthExpired = (msg = '登录状态已过期，请重新登录') => {
   message.warning(msg)
-  clearAllToken()
+  clearAccessToken()
   const redirect = encodeURIComponent(window.location.href)
   window.location.href = `/user/login?redirect=${redirect}`
 }

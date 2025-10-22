@@ -15,6 +15,32 @@ const appAxios = axios.create({
 let isRefreshing = false
 let requestQueue: ((token: string) => void)[] = []
 
+const NO_AUTH_URLS = [
+  '/user/login',
+  '/user/register',
+  '/user/login/send-email-code',
+  '/user/token/refresh',
+  '/user/sendEmailCode',
+]
+
+function normalizeRequestUrl(url?: string): string {
+  if (!url) return ''
+  if (/^https?:\/\//.test(url)) {
+    try {
+      return new URL(url).pathname
+    } catch (error) {
+      return url
+    }
+  }
+  return url.split('?')[0] || ''
+}
+
+function shouldAttachAuthHeader(url?: string): boolean {
+  const normalized = normalizeRequestUrl(url)
+  if (!normalized) return true
+  return !NO_AUTH_URLS.some((path) => normalized.startsWith(path))
+}
+
 async function doRefreshAccessToken(oldToken: string): Promise<string> {
   const { data } = await refreshAccessToken({ accessToken: oldToken })
 
@@ -23,19 +49,27 @@ async function doRefreshAccessToken(oldToken: string): Promise<string> {
   }
 
   const newToken = data.data
-  // 后端 AccessToken 有效期为 360 分钟（6小时）
-  setAccessToken(newToken, 6 * 60 * 60)
+  // AccessToken 有效期为 60 分钟
+  setAccessToken(newToken, 60 * 60)
   return newToken
 }
 
 // 全局请求拦截器
 appAxios.interceptors.request.use(
   (config) => {
-    const token = getAccessToken()
-    if (token) {
+    if (shouldAttachAuthHeader(config.url)) {
+      const token = getAccessToken()
+      if (token) {
+        const headers = (config.headers || {}) as AxiosRequestHeaders
+        headers.Authorization = `Bearer ${token}`
+        config.headers = headers
+      }
+    } else {
       const headers = (config.headers || {}) as AxiosRequestHeaders
-      headers.Authorization = `Bearer ${token}`
-      config.headers = headers
+      if ('Authorization' in headers) {
+        delete headers.Authorization
+        config.headers = headers
+      }
     }
     return config
   },
@@ -50,7 +84,12 @@ appAxios.interceptors.response.use(
     const { data } = response
 
     if (data.code === 40100) {
-      // accessToken 过期
+      handleAuthExpired(data.message || '未登录，请先登录')
+      return Promise.reject(new Error('Not Logged In'))
+    }
+
+    if (data.code === 40106) {
+      // 登录状态已过期，触发刷新逻辑
       return Promise.reject({ response })
     }
 
@@ -68,8 +107,13 @@ appAxios.interceptors.response.use(
 
     const { data } = error.response
 
+    if (data?.code === 40100) {
+      handleAuthExpired(data.message || '未登录，请先登录')
+      return Promise.reject(error)
+    }
+
     // accessToken 过期
-    if ((data?.code === 40100 || error.response.status === 401) && !originalRequest._retry) {
+    if ((data?.code === 40106 || (!data?.code && error.response.status === 401)) && !originalRequest._retry) {
       originalRequest._retry = true
       const oldToken = getAccessToken()
 
@@ -82,7 +126,9 @@ appAxios.interceptors.response.use(
       if (isRefreshing) {
         return new Promise((resolve) => {
           requestQueue.push((newToken) => {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`
+            const headers = (originalRequest.headers || {}) as AxiosRequestHeaders
+            headers.Authorization = `Bearer ${newToken}`
+            originalRequest.headers = headers
             resolve(appAxios(originalRequest))
           })
         })
@@ -98,7 +144,9 @@ appAxios.interceptors.response.use(
         requestQueue = []
 
         // 重试原请求
-        originalRequest.headers.Authorization = `Bearer ${newToken}`
+        const headers = (originalRequest.headers || {}) as AxiosRequestHeaders
+        headers.Authorization = `Bearer ${newToken}`
+        originalRequest.headers = headers
         return appAxios(originalRequest)
       } catch (err) {
         handleAuthExpired('登录状态已过期，请重新登录')
