@@ -46,6 +46,7 @@ const headerUser = computed(() => {
     return null
   }
   const name =
+    currentUser.value.userName ||
     currentUser.value.userAccount ||
     currentUser.value.userEmail ||
     currentUser.value.userPhone ||
@@ -66,7 +67,7 @@ const handleAuth = () => {
 }
 
 const handleProfile = () => {
-  router.push('/user/userManage')
+  router.push('/user/profile')
 }
 
 const handleLogout = () => {
