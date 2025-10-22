@@ -1,10 +1,16 @@
 <script lang="ts" setup>
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { storeToRefs } from 'pinia'
 import type { FormInstance } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
-import { baseAdminGetUserById, baseUserGetUserById, updateEmail, updatePhone } from '@/api/userController'
+import {
+  baseAdminGetUserById,
+  baseUserGetUserById,
+  sendEmailCode,
+  updateEmail,
+  updatePhone,
+} from '@/api/userController'
 import ACCESS_ENUM from '@/access/accessEnum'
 import { useLoginUserStore } from '@/stores/loginUser'
 
@@ -15,8 +21,18 @@ const loading = ref(false)
 
 const profile = ref<(API.User & API.UserVO) | null>(null)
 
+const phoneModalVisible = ref(false)
+const emailModalVisible = ref(false)
+const phoneCodeLoading = ref(false)
+const emailCodeLoading = ref(false)
+const phoneCountdown = ref(0)
+const emailCountdown = ref(0)
 const phoneFormRef = ref<FormInstance>()
 const emailFormRef = ref<FormInstance>()
+const updatingPhone = ref(false)
+const updatingEmail = ref(false)
+let phoneTimer: ReturnType<typeof setInterval> | undefined
+let emailTimer: ReturnType<typeof setInterval> | undefined
 
 const phoneForm = reactive<API.UserPhoneUpdateRequest>({
   id: undefined,
@@ -31,6 +47,50 @@ const emailForm = reactive<API.UserEmailUpdateRequest>({
   newEmail: '',
   emailCode: '',
 })
+
+const normalizeId = (id?: string | number | null) => {
+  if (id === undefined || id === null) return undefined
+  return typeof id === 'string' ? id : id.toString()
+}
+
+const clearCountdown = (type: 'phone' | 'email') => {
+  if (type === 'phone') {
+    phoneCountdown.value = 0
+    if (phoneTimer) {
+      clearInterval(phoneTimer)
+      phoneTimer = undefined
+    }
+  } else {
+    emailCountdown.value = 0
+    if (emailTimer) {
+      clearInterval(emailTimer)
+      emailTimer = undefined
+    }
+  }
+}
+
+const startCountdown = (type: 'phone' | 'email') => {
+  clearCountdown(type)
+  if (type === 'phone') {
+    phoneCountdown.value = 60
+    phoneTimer = setInterval(() => {
+      if (phoneCountdown.value <= 1) {
+        clearCountdown('phone')
+      } else {
+        phoneCountdown.value -= 1
+      }
+    }, 1000)
+  } else {
+    emailCountdown.value = 60
+    emailTimer = setInterval(() => {
+      if (emailCountdown.value <= 1) {
+        clearCountdown('email')
+      } else {
+        emailCountdown.value -= 1
+      }
+    }, 1000)
+  }
+}
 
 const formatDate = (value?: string) => {
   if (!value) return '—'
@@ -56,30 +116,43 @@ const loadProfile = async () => {
   loading.value = true
   try {
     if (currentUser.value.userRole === ACCESS_ENUM.ADMIN) {
-      const { data } = await baseAdminGetUserById({ id: currentUser.value.id })
+      const { data } = await baseAdminGetUserById({ id: normalizeId(currentUser.value.id)! })
       if (data.code === 0 && data.data) {
-        profile.value = { ...data.data } as (API.User & API.UserVO)
+        profile.value = { ...data.data, id: normalizeId(data.data.id) } as (API.User & API.UserVO)
       } else {
         message.error(data.message ?? '获取用户信息失败')
       }
     } else {
-      const { data } = await baseUserGetUserById({ id: currentUser.value.id })
+      const { data } = await baseUserGetUserById({ id: normalizeId(currentUser.value.id)! })
       if (data.code === 0 && data.data) {
-        profile.value = { ...data.data } as (API.User & API.UserVO)
+        profile.value = { ...data.data, id: normalizeId(data.data.id) } as (API.User & API.UserVO)
       } else {
         message.error(data.message ?? '获取用户信息失败')
       }
     }
-  } catch (error) {
+  } catch {
     message.error('获取用户信息失败')
   } finally {
     loading.value = false
   }
 }
 
+const resetPhoneForm = () => {
+  phoneForm.userPassword = ''
+  phoneForm.phoneCode = ''
+  phoneForm.newPhone = ''
+}
+
+const resetEmailForm = () => {
+  emailForm.userPassword = ''
+  emailForm.emailCode = ''
+  emailForm.newEmail = ''
+}
+
 const syncFormIds = () => {
-  phoneForm.id = currentUser.value?.id
-  emailForm.id = currentUser.value?.id
+  const id = normalizeId(currentUser.value?.id)
+  phoneForm.id = id
+  emailForm.id = id
 }
 
 watch(
@@ -102,51 +175,118 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => {
+  clearCountdown('phone')
+  clearCountdown('email')
+})
+
+const openPhoneModal = () => {
+  syncFormIds()
+  phoneModalVisible.value = true
+  nextTick(() => {
+    phoneFormRef.value?.clearValidate?.()
+  })
+}
+
+const closePhoneModal = () => {
+  phoneModalVisible.value = false
+  phoneFormRef.value?.resetFields()
+  resetPhoneForm()
+  clearCountdown('phone')
+}
+
+const openEmailModal = () => {
+  syncFormIds()
+  emailModalVisible.value = true
+  nextTick(() => {
+    emailFormRef.value?.clearValidate?.()
+  })
+}
+
+const closeEmailModal = () => {
+  emailModalVisible.value = false
+  emailFormRef.value?.resetFields()
+  resetEmailForm()
+  clearCountdown('email')
+}
+
+const handleSendPhoneCode = () => {
+  if (!phoneForm.newPhone) {
+    message.warning('请先输入新手机号')
+    return
+  }
+  message.warning('短信验证码服务暂未接入，请联系管理员')
+}
+
+const handleSendEmailCode = async () => {
+  if (!emailForm.newEmail) {
+    message.warning('请先输入新邮箱')
+    return
+  }
+  if (emailCountdown.value > 0 || emailCodeLoading.value) {
+    return
+  }
+  emailCodeLoading.value = true
+  try {
+    const { data } = await sendEmailCode({ email: emailForm.newEmail })
+    if (data.code === 0) {
+      message.success('验证码已发送，请检查邮箱')
+      startCountdown('email')
+    } else {
+      message.error(data.message ?? '验证码发送失败')
+    }
+  } catch {
+    message.error('验证码发送失败')
+  } finally {
+    emailCodeLoading.value = false
+  }
+}
+
 const handleUpdatePhone = async () => {
   try {
     await phoneFormRef.value?.validate()
-  } catch (error) {
+  } catch {
     return
   }
 
+  updatingPhone.value = true
   try {
     const { data } = await updatePhone(phoneForm)
     if (data.code === 0) {
       message.success('手机号更新成功')
-      phoneFormRef.value?.resetFields()
-      phoneForm.userPassword = ''
-      phoneForm.phoneCode = ''
-      phoneForm.newPhone = ''
+      closePhoneModal()
       loadProfile()
     } else {
       message.error(data.message ?? '手机号更新失败')
     }
-  } catch (error) {
+  } catch {
     message.error('手机号更新失败')
+  } finally {
+    updatingPhone.value = false
   }
 }
 
 const handleUpdateEmail = async () => {
   try {
     await emailFormRef.value?.validate()
-  } catch (error) {
+  } catch {
     return
   }
 
+  updatingEmail.value = true
   try {
     const { data } = await updateEmail(emailForm)
     if (data.code === 0) {
       message.success('邮箱更新成功')
-      emailFormRef.value?.resetFields()
-      emailForm.userPassword = ''
-      emailForm.emailCode = ''
-      emailForm.newEmail = ''
+      closeEmailModal()
       loadProfile()
     } else {
       message.error(data.message ?? '邮箱更新失败')
     }
-  } catch (error) {
+  } catch {
     message.error('邮箱更新失败')
+  } finally {
+    updatingEmail.value = false
   }
 }
 
@@ -170,7 +310,7 @@ const emailRules = {
       <a-row :gutter="24" class="user-profile__content">
         <a-col :xs="24" :lg="12">
           <a-card title="基础信息" class="user-profile__card">
-            <a-descriptions :column="1" bordered size="small">
+            <a-descriptions :column="1" bordered size="middle">
               <a-descriptions-item label="账号">{{ profile?.userAccount ?? '—' }}</a-descriptions-item>
               <a-descriptions-item label="昵称">{{ profile?.userName ?? '—' }}</a-descriptions-item>
               <a-descriptions-item label="角色">
@@ -186,70 +326,128 @@ const emailRules = {
               <a-descriptions-item label="会员状态">
                 <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
               </a-descriptions-item>
-              <a-descriptions-item v-if="isVip" label="会员起止">
+              <a-descriptions-item v-if="isVip" label="会员有效期">
                 {{ formatDate(profile?.vipStartTime) }} ~ {{ formatDate(profile?.vipEndTime) }}
               </a-descriptions-item>
-              <a-descriptions-item label="邮箱">{{ profile?.userEmail ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="手机号">{{ profile?.userPhone ?? '—' }}</a-descriptions-item>
               <a-descriptions-item label="邀请码">{{ profile?.inviteCode ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="最近登录">{{ formatDate(profile?.lastLoginTime) }}</a-descriptions-item>
-              <a-descriptions-item label="创建时间">{{ formatDate(profile?.createTime) }}</a-descriptions-item>
-              <a-descriptions-item label="更新时间">{{ formatDate(profile?.updateTime) }}</a-descriptions-item>
             </a-descriptions>
           </a-card>
         </a-col>
 
         <a-col :xs="24" :lg="12">
           <a-space direction="vertical" size="large" style="width: 100%">
-            <a-card title="更新手机号" class="user-profile__card">
-              <a-form
-                ref="phoneFormRef"
-                :model="phoneForm"
-                :rules="phoneRules"
-                :label-col="{ span: 6 }"
-                :wrapper-col="{ span: 16 }"
-              >
-                <a-form-item label="新手机号" name="newPhone">
-                  <a-input v-model:value="phoneForm.newPhone" placeholder="请输入新手机号" />
-                </a-form-item>
-                <a-form-item label="验证码" name="phoneCode">
-                  <a-input v-model:value="phoneForm.phoneCode" placeholder="请输入短信验证码" />
-                </a-form-item>
-                <a-form-item label="密码" name="userPassword">
-                  <a-input-password v-model:value="phoneForm.userPassword" placeholder="请输入密码" />
-                </a-form-item>
-                <a-form-item :wrapper-col="{ offset: 6, span: 16 }">
-                  <a-button type="primary" block @click="handleUpdatePhone">更新手机号</a-button>
-                </a-form-item>
-              </a-form>
+            <a-card title="账号安全" class="user-profile__card">
+              <div class="user-profile__security-list">
+                <div class="user-profile__security-item">
+                  <div>
+                    <div class="user-profile__security-title">绑定手机号</div>
+                    <div class="user-profile__security-desc">{{ profile?.userPhone ?? '未绑定' }}</div>
+                  </div>
+                  <a-button type="default" @click="openPhoneModal">更改手机号</a-button>
+                </div>
+                <div class="user-profile__security-item">
+                  <div>
+                    <div class="user-profile__security-title">绑定邮箱</div>
+                    <div class="user-profile__security-desc">{{ profile?.userEmail ?? '未绑定' }}</div>
+                  </div>
+                  <a-button type="default" @click="openEmailModal">更改邮箱</a-button>
+                </div>
+              </div>
+              <a-typography-paragraph type="secondary" class="user-profile__security-tip">
+                更换手机号或邮箱时需要通过验证码验证身份，请确保可以正常接收验证码。
+              </a-typography-paragraph>
             </a-card>
 
-            <a-card title="更新邮箱" class="user-profile__card">
-              <a-form
-                ref="emailFormRef"
-                :model="emailForm"
-                :rules="emailRules"
-                :label-col="{ span: 6 }"
-                :wrapper-col="{ span: 16 }"
-              >
-                <a-form-item label="新邮箱" name="newEmail">
-                  <a-input v-model:value="emailForm.newEmail" placeholder="请输入新邮箱" />
-                </a-form-item>
-                <a-form-item label="验证码" name="emailCode">
-                  <a-input v-model:value="emailForm.emailCode" placeholder="请输入邮箱验证码" />
-                </a-form-item>
-                <a-form-item label="密码" name="userPassword">
-                  <a-input-password v-model:value="emailForm.userPassword" placeholder="请输入密码" />
-                </a-form-item>
-                <a-form-item :wrapper-col="{ offset: 6, span: 16 }">
-                  <a-button type="primary" block @click="handleUpdateEmail">更新邮箱</a-button>
-                </a-form-item>
-              </a-form>
+            <a-card title="登录记录" class="user-profile__card">
+              <a-descriptions :column="1" size="middle">
+                <a-descriptions-item label="最近登录">{{ formatDate(profile?.lastLoginTime) }}</a-descriptions-item>
+                <a-descriptions-item label="最近登录 IP">{{ profile?.lastLoginIp ?? '—' }}</a-descriptions-item>
+                <a-descriptions-item label="创建时间">{{ formatDate(profile?.createTime) }}</a-descriptions-item>
+                <a-descriptions-item label="更新时间">{{ formatDate(profile?.updateTime) }}</a-descriptions-item>
+              </a-descriptions>
             </a-card>
           </a-space>
         </a-col>
       </a-row>
     </a-spin>
+
+    <a-modal
+      v-model:open="phoneModalVisible"
+      title="更改手机号"
+      ok-text="确认更改"
+      cancel-text="取消"
+      :confirm-loading="updatingPhone"
+      destroy-on-close
+      @ok="handleUpdatePhone"
+      @cancel="closePhoneModal"
+    >
+      <a-form ref="phoneFormRef" :model="phoneForm" :rules="phoneRules" layout="vertical">
+        <a-form-item label="新手机号" name="newPhone">
+          <a-input v-model:value="phoneForm.newPhone" placeholder="请输入新手机号" />
+        </a-form-item>
+        <a-form-item label="验证码" name="phoneCode">
+          <a-row :gutter="8">
+            <a-col :span="16">
+              <a-input v-model:value="phoneForm.phoneCode" placeholder="请输入短信验证码" />
+            </a-col>
+            <a-col :span="8">
+              <a-button
+                block
+                type="primary"
+                ghost
+                :disabled="phoneCountdown > 0 || phoneCodeLoading"
+                :loading="phoneCodeLoading"
+                @click="handleSendPhoneCode"
+              >
+                {{ phoneCountdown > 0 ? `${phoneCountdown}s后重试` : '获取验证码' }}
+              </a-button>
+            </a-col>
+          </a-row>
+        </a-form-item>
+        <a-form-item label="密码" name="userPassword">
+          <a-input-password v-model:value="phoneForm.userPassword" placeholder="请输入密码" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="emailModalVisible"
+      title="更改邮箱"
+      ok-text="确认更改"
+      cancel-text="取消"
+      :confirm-loading="updatingEmail"
+      destroy-on-close
+      @ok="handleUpdateEmail"
+      @cancel="closeEmailModal"
+    >
+      <a-form ref="emailFormRef" :model="emailForm" :rules="emailRules" layout="vertical">
+        <a-form-item label="新邮箱" name="newEmail">
+          <a-input v-model:value="emailForm.newEmail" placeholder="请输入新邮箱" />
+        </a-form-item>
+        <a-form-item label="验证码" name="emailCode">
+          <a-row :gutter="8">
+            <a-col :span="16">
+              <a-input v-model:value="emailForm.emailCode" placeholder="请输入邮箱验证码" />
+            </a-col>
+            <a-col :span="8">
+              <a-button
+                block
+                type="primary"
+                ghost
+                :disabled="emailCountdown > 0 || emailCodeLoading"
+                :loading="emailCodeLoading"
+                @click="handleSendEmailCode"
+              >
+                {{ emailCountdown > 0 ? `${emailCountdown}s后重试` : '获取验证码' }}
+              </a-button>
+            </a-col>
+          </a-row>
+        </a-form-item>
+        <a-form-item label="密码" name="userPassword">
+          <a-input-password v-model:value="emailForm.userPassword" placeholder="请输入密码" />
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -266,6 +464,36 @@ const emailRules = {
 
 .user-profile__card {
   background: #ffffff;
+}
+
+.user-profile__security-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.user-profile__security-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.user-profile__security-title {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.user-profile__security-desc {
+  color: rgba(0, 0, 0, 0.65);
+}
+
+.user-profile__security-tip {
+  margin-top: 16px;
 }
 
 :deep(.ant-descriptions-item-label) {
