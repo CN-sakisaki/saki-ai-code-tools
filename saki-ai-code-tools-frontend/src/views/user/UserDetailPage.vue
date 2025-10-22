@@ -1,7 +1,7 @@
 <script lang="ts" setup>
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import type { FormInstance } from 'ant-design-vue'
+import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
 import { baseAdminGetUserById, updateUser } from '@/api/userController'
@@ -28,6 +28,7 @@ const formState = reactive<API.UserUpdateRequest>({
   userName: '',
   userEmail: '',
   userPhone: '',
+  userAvatar: '',
   userRole: 'user',
   userStatus: 1,
   isVip: 0,
@@ -58,6 +59,11 @@ const formatDate = (value?: string) => {
 
 const isVip = computed(() => detail.value?.isVip === 1)
 
+const avatarInitial = computed(() => {
+  const source = detail.value?.userName || detail.value?.userAccount || '用'
+  return source.charAt(0).toUpperCase()
+})
+
 const syncFormState = (user: API.User | API.UserVO | null) => {
   formState.id = user?.id
     ? typeof user.id === 'string'
@@ -68,6 +74,7 @@ const syncFormState = (user: API.User | API.UserVO | null) => {
   formState.userName = user?.userName ?? ''
   formState.userEmail = user?.userEmail ?? ''
   formState.userPhone = user?.userPhone ?? ''
+  formState.userAvatar = user?.userAvatar ?? ''
   formState.userRole = user?.userRole ?? 'user'
   formState.userStatus = user?.userStatus ?? 1
   formState.isVip = user?.isVip ?? 0
@@ -142,6 +149,33 @@ const handleSubmit = async () => {
   }
 }
 
+const fileToDataUrl = (file: File): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve((reader.result as string) || '')
+    reader.onerror = () => reject(new Error('读取文件失败'))
+    reader.readAsDataURL(file)
+  })
+
+const handleAvatarChange: UploadProps['onChange'] = async (info) => {
+  const file = info.file.originFileObj as File | undefined
+  if (!file) return
+  if (!file.type.startsWith('image/')) {
+    message.error('请选择图片文件')
+    return
+  }
+  try {
+    const preview = await fileToDataUrl(file)
+    formState.userAvatar = preview
+  } catch {
+    message.error('读取图片失败，请重试')
+  }
+}
+
+const clearAvatar = () => {
+  formState.userAvatar = ''
+}
+
 onMounted(() => {
   if (userId.value) {
     fetchDetail()
@@ -164,55 +198,55 @@ onMounted(() => {
     </a-page-header>
 
     <a-spin :spinning="loading">
-      <a-row :gutter="24" class="user-detail__content">
-        <a-col :xs="24" :lg="12">
-          <a-card title="基本信息" class="user-detail__card">
-            <a-descriptions :column="1" bordered size="middle">
-              <a-descriptions-item label="用户ID">{{ detail?.id ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="账号">{{ detail?.userAccount ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="名称">{{ detail?.userName ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="邮箱">{{ detail?.userEmail ?? '—' }}</a-descriptions-item>
-              <a-descriptions-item label="手机号">{{ detail?.userPhone ?? '—' }}</a-descriptions-item>
-            </a-descriptions>
-          </a-card>
-        </a-col>
+      <a-space direction="vertical" size="large" class="user-detail__content">
+        <a-card class="user-detail__card">
+          <template #title>基本信息</template>
+          <template #extra>
+            <a-avatar :size="64" :src="detail?.userAvatar">
+              <span v-if="!detail?.userAvatar">{{ avatarInitial }}</span>
+            </a-avatar>
+          </template>
+          <a-descriptions :column="1" bordered size="middle">
+            <a-descriptions-item label="用户ID">{{ detail?.id ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="账号">{{ detail?.userAccount ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="名称">{{ detail?.userName ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="邮箱">{{ detail?.userEmail ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="手机号">{{ detail?.userPhone ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="个人简介">{{ detail?.userProfile ?? '—' }}</a-descriptions-item>
+          </a-descriptions>
+        </a-card>
 
-        <a-col :xs="24" :lg="12">
-          <a-space direction="vertical" size="large" style="width: 100%">
-            <a-card title="权限与会员" class="user-detail__card">
-              <a-descriptions :column="1" size="middle">
-                <a-descriptions-item label="角色">
-                  <a-tag :color="detail?.userRole === 'admin' ? 'magenta' : 'blue'">
-                    {{ detail?.userRole === 'admin' ? '管理员' : '用户' }}
-                  </a-tag>
-                </a-descriptions-item>
-                <a-descriptions-item label="状态">
-                  <a-tag :color="detail?.userStatus === 1 ? 'green' : 'red'">
-                    {{ detail?.userStatus === 1 ? '正常' : '禁用' }}
-                  </a-tag>
-                </a-descriptions-item>
-                <a-descriptions-item label="会员等级">
-                  <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
-                </a-descriptions-item>
-                <a-descriptions-item v-if="isVip" label="会员有效期">
-                  {{ formatDate(detail?.vipStartTime) }} ~ {{ formatDate(detail?.vipEndTime) }}
-                </a-descriptions-item>
-                <a-descriptions-item label="邀请码">{{ detail?.inviteCode ?? '—' }}</a-descriptions-item>
-              </a-descriptions>
-            </a-card>
+        <a-card title="权限与会员" class="user-detail__card">
+          <a-descriptions :column="1" size="middle">
+            <a-descriptions-item label="角色">
+              <a-tag :color="detail?.userRole === 'admin' ? 'magenta' : 'blue'">
+                {{ detail?.userRole === 'admin' ? '管理员' : '用户' }}
+              </a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="状态">
+              <a-tag :color="detail?.userStatus === 1 ? 'green' : 'red'">
+                {{ detail?.userStatus === 1 ? '正常' : '禁用' }}
+              </a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item label="会员等级">
+              <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
+            </a-descriptions-item>
+            <a-descriptions-item v-if="isVip" label="会员有效期">
+              {{ formatDate(detail?.vipStartTime) }} ~ {{ formatDate(detail?.vipEndTime) }}
+            </a-descriptions-item>
+            <a-descriptions-item label="邀请码">{{ detail?.inviteCode ?? '—' }}</a-descriptions-item>
+          </a-descriptions>
+        </a-card>
 
-            <a-card title="时间信息" class="user-detail__card">
-              <a-descriptions :column="1" size="middle">
-                <a-descriptions-item label="最近登录时间">{{ formatDate(detail?.lastLoginTime) }}</a-descriptions-item>
-                <a-descriptions-item label="最近登录 IP">{{ detail?.lastLoginIp ?? '—' }}</a-descriptions-item>
-                <a-descriptions-item label="最后编辑时间">{{ formatDate(detail?.editTime) }}</a-descriptions-item>
-                <a-descriptions-item label="创建时间">{{ formatDate(detail?.createTime) }}</a-descriptions-item>
-                <a-descriptions-item label="更新时间">{{ formatDate(detail?.updateTime) }}</a-descriptions-item>
-              </a-descriptions>
-            </a-card>
-          </a-space>
-        </a-col>
-      </a-row>
+        <a-card title="时间信息" class="user-detail__card">
+          <a-descriptions :column="1" size="middle">
+            <a-descriptions-item label="最近登录时间">{{ formatDate(detail?.lastLoginTime) }}</a-descriptions-item>
+            <a-descriptions-item label="最近登录 IP">{{ detail?.lastLoginIp ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="最后编辑时间">{{ formatDate(detail?.editTime) }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{ formatDate(detail?.createTime) }}</a-descriptions-item>
+          </a-descriptions>
+        </a-card>
+      </a-space>
     </a-spin>
 
     <a-modal
@@ -235,6 +269,27 @@ onMounted(() => {
         </a-form-item>
         <a-form-item label="用户名称" name="userName">
           <a-input v-model:value="formState.userName" placeholder="请输入名称" />
+        </a-form-item>
+        <a-form-item label="用户头像">
+          <div class="user-detail__avatar-upload">
+            <a-avatar :size="96" :src="formState.userAvatar">
+              <span v-if="!formState.userAvatar">{{ avatarInitial }}</span>
+            </a-avatar>
+            <div class="user-detail__avatar-actions">
+              <a-upload
+                accept="image/*"
+                :show-upload-list="false"
+                :before-upload="() => false"
+                @change="handleAvatarChange"
+              >
+                <a-button>上传头像</a-button>
+              </a-upload>
+              <a-input v-model:value="formState.userAvatar" placeholder="或粘贴头像图片地址" />
+              <a-button v-if="formState.userAvatar" type="link" danger @click="clearAvatar">
+                移除头像
+              </a-button>
+            </div>
+          </div>
         </a-form-item>
         <a-form-item label="用户邮箱" name="userEmail">
           <a-input v-model:value="formState.userEmail" placeholder="请输入邮箱" />
@@ -260,30 +315,26 @@ onMounted(() => {
             <a-select-option :value="1">VIP</a-select-option>
           </a-select>
         </a-form-item>
-        <a-row v-if="formState.isVip === 1" :gutter="16">
-          <a-col :xs="24" :md="12">
-            <a-form-item label="会员开始时间" name="vipStartTime">
-              <a-date-picker
-                v-model:value="formState.vipStartTime"
-                show-time
-                style="width: 100%"
-                value-format="YYYY-MM-DD HH:mm:ss"
-                placeholder="请选择开始时间"
-              />
-            </a-form-item>
-          </a-col>
-          <a-col :xs="24" :md="12">
-            <a-form-item label="会员结束时间" name="vipEndTime">
-              <a-date-picker
-                v-model:value="formState.vipEndTime"
-                show-time
-                style="width: 100%"
-                value-format="YYYY-MM-DD HH:mm:ss"
-                placeholder="请选择结束时间"
-              />
-            </a-form-item>
-          </a-col>
-        </a-row>
+        <template v-if="formState.isVip === 1">
+          <a-form-item label="会员开始时间" name="vipStartTime">
+            <a-date-picker
+              v-model:value="formState.vipStartTime"
+              show-time
+              style="width: 100%"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="请选择开始时间"
+            />
+          </a-form-item>
+          <a-form-item label="会员结束时间" name="vipEndTime">
+            <a-date-picker
+              v-model:value="formState.vipEndTime"
+              show-time
+              style="width: 100%"
+              value-format="YYYY-MM-DD HH:mm:ss"
+              placeholder="请选择结束时间"
+            />
+          </a-form-item>
+        </template>
       </a-form>
     </a-modal>
   </div>
@@ -298,6 +349,8 @@ onMounted(() => {
 
 .user-detail__content {
   margin-top: 16px;
+  display: flex;
+  flex-direction: column;
 }
 
 .user-detail__card {
@@ -311,5 +364,18 @@ onMounted(() => {
 
 :deep(.ant-descriptions-item-label) {
   width: 120px;
+}
+
+.user-detail__avatar-upload {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+}
+
+.user-detail__avatar-actions {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 </style>
