@@ -136,14 +136,14 @@ const loadProfile = async () => {
     if (currentUser.value.userRole === ACCESS_ENUM.ADMIN) {
       const { data } = await baseAdminGetUserById({ id: normalizeId(currentUser.value.id)! })
       if (data.code === 0 && data.data) {
-        profile.value = { ...data.data, id: normalizeId(data.data.id) } as (API.User & API.UserVO)
+        profile.value = { ...data.data, id: normalizeId(data.data.id) } as API.User & API.UserVO
       } else {
         message.error(data.message ?? '获取用户信息失败')
       }
     } else {
       const { data } = await baseUserGetUserById({ id: normalizeId(currentUser.value.id)! })
       if (data.code === 0 && data.data) {
-        profile.value = { ...data.data, id: normalizeId(data.data.id) } as (API.User & API.UserVO)
+        profile.value = { ...data.data, id: normalizeId(data.data.id) } as API.User & API.UserVO
       } else {
         message.error(data.message ?? '获取用户信息失败')
       }
@@ -411,7 +411,6 @@ const handleUpdateProfile = async () => {
       @back="() => router.back()"
     >
       <template #extra>
-        <a-button @click="() => router.back()">返回</a-button>
         <a-button type="primary" :disabled="!profile" @click="openEditModal">编辑信息</a-button>
       </template>
     </a-page-header>
@@ -425,7 +424,9 @@ const handleUpdateProfile = async () => {
             </a-avatar>
           </template>
           <a-descriptions :column="1" bordered size="middle">
-            <a-descriptions-item label="账号">{{ profile?.userAccount ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="账号">{{
+              profile?.userAccount ?? '—'
+            }}</a-descriptions-item>
             <a-descriptions-item label="昵称">{{ profile?.userName ?? '—' }}</a-descriptions-item>
             <a-descriptions-item label="角色">
               <a-tag :color="profile?.userRole === 'admin' ? 'magenta' : 'blue'">
@@ -438,12 +439,16 @@ const handleUpdateProfile = async () => {
               </a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="会员状态">
-              <a-tag :color="isVip ? 'gold' : 'default'">{{ isVip ? 'VIP 会员' : '普通用户' }}</a-tag>
+              <a-tag :color="isVip ? 'gold' : 'default'">{{
+                isVip ? 'VIP 会员' : '普通用户'
+              }}</a-tag>
             </a-descriptions-item>
             <a-descriptions-item v-if="isVip" label="会员有效期">
               {{ formatDate(profile?.vipStartTime) }} ~ {{ formatDate(profile?.vipEndTime) }}
             </a-descriptions-item>
-            <a-descriptions-item label="邀请码">{{ profile?.inviteCode ?? '—' }}</a-descriptions-item>
+            <a-descriptions-item label="邀请码">{{
+              profile?.inviteCode ?? '—'
+            }}</a-descriptions-item>
             <a-descriptions-item label="个人简介">
               <span class="user-profile__bio">{{ profile?.userProfile || '—' }}</span>
             </a-descriptions-item>
@@ -474,10 +479,18 @@ const handleUpdateProfile = async () => {
 
         <a-card title="登录与时间信息" class="user-profile__card">
           <a-descriptions :column="1" size="middle">
-            <a-descriptions-item label="最近登录">{{ formatDate(profile?.lastLoginTime) }}</a-descriptions-item>
-            <a-descriptions-item label="最近登录 IP">{{ profile?.lastLoginIp ?? '—' }}</a-descriptions-item>
-            <a-descriptions-item label="最后编辑时间">{{ formatDate(profile?.editTime) }}</a-descriptions-item>
-            <a-descriptions-item label="创建时间">{{ formatDate(profile?.createTime) }}</a-descriptions-item>
+            <a-descriptions-item label="最近登录">{{
+              formatDate(profile?.lastLoginTime)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="最近登录 IP">{{
+              profile?.lastLoginIp ?? '—'
+            }}</a-descriptions-item>
+            <a-descriptions-item label="最后编辑时间">{{
+              formatDate(profile?.editTime)
+            }}</a-descriptions-item>
+            <a-descriptions-item label="创建时间">{{
+              formatDate(profile?.createTime)
+            }}</a-descriptions-item>
           </a-descriptions>
         </a-card>
       </a-space>
@@ -509,7 +522,12 @@ const handleUpdateProfile = async () => {
                 <a-button>上传头像</a-button>
               </a-upload>
               <a-input v-model:value="profileForm.userAvatar" placeholder="或粘贴头像图片地址" />
-              <a-button v-if="profileForm.userAvatar" type="link" danger @click="clearProfileAvatar">
+              <a-button
+                v-if="profileForm.userAvatar"
+                type="link"
+                danger
+                @click="clearProfileAvatar"
+              >
                 移除头像
               </a-button>
             </div>
@@ -519,7 +537,11 @@ const handleUpdateProfile = async () => {
           <a-input v-model:value="profileForm.userName" placeholder="请输入昵称" />
         </a-form-item>
         <a-form-item label="个人简介" name="userProfile">
-          <a-textarea v-model:value="profileForm.userProfile" :rows="4" placeholder="请输入个人简介" />
+          <a-textarea
+            v-model:value="profileForm.userProfile"
+            :rows="4"
+            placeholder="请输入个人简介"
+          />
         </a-form-item>
       </a-form>
     </a-modal>
