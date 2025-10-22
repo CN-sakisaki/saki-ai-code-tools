@@ -12,6 +12,7 @@ import {
   updateEmail,
   updatePhone,
   updateProfile,
+  uploadCurrentUserAvatar,
 } from '@/api/userController'
 import ACCESS_ENUM from '@/access/accessEnum'
 import { useLoginUserStore } from '@/stores/loginUser'
@@ -37,6 +38,7 @@ const profileFormRef = ref<FormInstance>()
 const updatingPhone = ref(false)
 const updatingEmail = ref(false)
 const updatingProfile = ref(false)
+const profileAvatarUploading = ref(false)
 let phoneTimer: ReturnType<typeof setInterval> | undefined
 let emailTimer: ReturnType<typeof setInterval> | undefined
 
@@ -345,14 +347,6 @@ const profileRules = {
   userName: [{ required: true, message: '请输入昵称' }],
 }
 
-const fileToDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve((reader.result as string) || '')
-    reader.onerror = () => reject(new Error('读取文件失败'))
-    reader.readAsDataURL(file)
-  })
-
 const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
   const file = info.file.originFileObj as File | undefined
   if (!file) return
@@ -360,15 +354,32 @@ const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
     message.error('请选择图片文件')
     return
   }
+  if (profileAvatarUploading.value) return
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  profileAvatarUploading.value = true
   try {
-    const preview = await fileToDataUrl(file)
-    profileForm.userAvatar = preview
+    const { data } = await uploadCurrentUserAvatar(formData)
+    if (data.code === 0 && data.data) {
+      profileForm.userAvatar = data.data
+      message.success('头像上传成功')
+    } else {
+      message.error(data.message ?? '头像上传失败')
+    }
   } catch {
-    message.error('读取图片失败，请重试')
+    message.error('头像上传失败')
+  } finally {
+    profileAvatarUploading.value = false
   }
 }
 
 const clearProfileAvatar = () => {
+  if (profileAvatarUploading.value) {
+    message.warning('头像上传中，请稍后再试')
+    return
+  }
   profileForm.userAvatar = ''
 }
 
@@ -517,15 +528,17 @@ const handleUpdateProfile = async () => {
                 accept="image/*"
                 :show-upload-list="false"
                 :before-upload="() => false"
+                :disabled="profileAvatarUploading"
                 @change="handleProfileAvatarChange"
               >
-                <a-button>上传头像</a-button>
+                <a-button :loading="profileAvatarUploading">上传头像</a-button>
               </a-upload>
               <a-input v-model:value="profileForm.userAvatar" placeholder="或粘贴头像图片地址" />
               <a-button
                 v-if="profileForm.userAvatar"
                 type="link"
                 danger
+                :disabled="profileAvatarUploading"
                 @click="clearProfileAvatar"
               >
                 移除头像

@@ -4,7 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
-import { baseAdminGetUserById, updateUser } from '@/api/userController'
+import { baseAdminGetUserById, updateUser, uploadUserAvatarByAdmin } from '@/api/userController'
 
 const route = useRoute()
 const router = useRouter()
@@ -19,6 +19,7 @@ if (route.params.id) {
 
 const loading = ref(false)
 const saving = ref(false)
+const avatarUploading = ref(false)
 const editModalVisible = ref(false)
 const detail = ref<API.UserVO | null>(null)
 const formRef = ref<FormInstance>()
@@ -145,14 +146,6 @@ const handleSubmit = async () => {
   }
 }
 
-const fileToDataUrl = (file: File): Promise<string> =>
-  new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve((reader.result as string) || '')
-    reader.onerror = () => reject(new Error('读取文件失败'))
-    reader.readAsDataURL(file)
-  })
-
 const handleAvatarChange: UploadProps['onChange'] = async (info) => {
   const file = info.file.originFileObj as File | undefined
   if (!file) return
@@ -160,15 +153,38 @@ const handleAvatarChange: UploadProps['onChange'] = async (info) => {
     message.error('请选择图片文件')
     return
   }
+  if (avatarUploading.value) return
+
+  const targetId = formState.id ?? userId.value
+  if (!targetId) {
+    message.error('未能识别用户ID，无法上传头像')
+    return
+  }
+
+  const formData = new FormData()
+  formData.append('file', file)
+
+  avatarUploading.value = true
   try {
-    const preview = await fileToDataUrl(file)
-    formState.userAvatar = preview
+    const { data } = await uploadUserAvatarByAdmin(formData, { userId: targetId })
+    if (data.code === 0 && data.data) {
+      formState.userAvatar = data.data
+      message.success('头像上传成功')
+    } else {
+      message.error(data.message ?? '头像上传失败')
+    }
   } catch {
-    message.error('读取图片失败，请重试')
+    message.error('头像上传失败')
+  } finally {
+    avatarUploading.value = false
   }
 }
 
 const clearAvatar = () => {
+  if (avatarUploading.value) {
+    message.warning('头像上传中，请稍后再试')
+    return
+  }
   formState.userAvatar = ''
 }
 
@@ -289,12 +305,19 @@ onMounted(() => {
                 accept="image/*"
                 :show-upload-list="false"
                 :before-upload="() => false"
+                :disabled="avatarUploading"
                 @change="handleAvatarChange"
               >
-                <a-button>上传头像</a-button>
+                <a-button :loading="avatarUploading">上传头像</a-button>
               </a-upload>
               <a-input v-model:value="formState.userAvatar" placeholder="或粘贴头像图片地址" />
-              <a-button v-if="formState.userAvatar" type="link" danger @click="clearAvatar">
+              <a-button
+                v-if="formState.userAvatar"
+                type="link"
+                danger
+                :disabled="avatarUploading"
+                @click="clearAvatar"
+              >
                 移除头像
               </a-button>
             </div>

@@ -1,5 +1,7 @@
 package com.saki.sakiaicodetoolsbackend.aop;
 
+import cn.hutool.core.util.StrUtil;
+import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.context.UserContext;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
 import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
@@ -9,6 +11,7 @@ import com.saki.sakiaicodetoolsbackend.utils.JwtUtils;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -86,27 +89,25 @@ public class JwtUserAspect {
         HttpServletRequest request =
                 ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
 
-        String authHeader = request.getHeader("Authorization");
-
         try {
-            if (authHeader != null && authHeader.startsWith("Bearer ")) {
-                String token = authHeader.substring(7);
-                // 这里会抛出 ExpiredJwtException
-                Claims claims = jwtUtils.parseToken(token);
-
-                String userId = claims.getSubject();
-                String userRole = claims.get("userRole", String.class);
-
-                User user = userMapper.selectOneById(Long.valueOf(userId));
-                if (user == null) {
-                    throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在或已删除");
-                }
-
-                UserContext.setUser(user);
-                log.debug("当前请求用户: id={}, role={}", userId, userRole);
-            } else {
+            String token = resolveToken(request);
+            if (StrUtil.isBlank(token)) {
                 throw new BusinessException(ErrorCode.TOKEN_INVALID, "未提供身份凭证");
             }
+
+            // 这里会抛出 ExpiredJwtException
+            Claims claims = jwtUtils.parseToken(token);
+
+            String userId = claims.getSubject();
+            String userRole = claims.get("userRole", String.class);
+
+            User user = userMapper.selectOneById(Long.valueOf(userId));
+            if (user == null) {
+                throw new BusinessException(ErrorCode.NOT_FOUND_ERROR, "用户不存在或已删除");
+            }
+
+            UserContext.setUser(user);
+            log.debug("当前请求用户: id={}, role={}", userId, userRole);
 
             // 执行目标方法
             return joinPoint.proceed();
@@ -122,6 +123,24 @@ public class JwtUserAspect {
         } finally {
             UserContext.clear();
         }
+    }
+
+    private String resolveToken(HttpServletRequest request) {
+        String authHeader = request.getHeader("Authorization");
+        if (StrUtil.isNotBlank(authHeader) && authHeader.startsWith("Bearer ")) {
+            return authHeader.substring(7);
+        }
+
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            for (Cookie cookie : cookies) {
+                if (StrUtil.equals(AuthConstants.ACCESS_TOKEN_COOKIE_NAME, cookie.getName())
+                        && StrUtil.isNotBlank(cookie.getValue())) {
+                    return cookie.getValue();
+                }
+            }
+        }
+        return null;
     }
 
 }

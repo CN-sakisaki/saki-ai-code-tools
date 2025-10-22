@@ -16,6 +16,8 @@ import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户表 服务层。
@@ -30,7 +32,7 @@ public interface UserService extends IService<User> {
      * @param request 登录请求
      * @return 用户信息
      */
-    UserVO login(LoginRequest request, HttpServletRequest httpServletRequest);
+    UserVO login(LoginRequest request, HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse);
 
     /**
      * 发送邮箱登录验证码。
@@ -45,7 +47,7 @@ public interface UserService extends IService<User> {
      * @param request 刷新请求
      * @return 新的 AccessToken
      */
-    String refreshAccessToken(TokenRefreshRequest request);
+    String refreshAccessToken(TokenRefreshRequest request, HttpServletResponse httpServletResponse);
 
     /**
      * 用户注册。
@@ -134,4 +136,13 @@ public interface UserService extends IService<User> {
      * @return 是否获取成功
      */
     Boolean sendEmailCode(UserEmailGetCodeRequest request);
+
+    /**
+     * 上传用户头像并返回访问地址。
+     *
+     * @param file          待上传的头像文件
+     * @param targetUserId  目标用户ID，若为空则默认取当前登录用户
+     * @return 头像在对象存储中的访问地址
+     */
+    String uploadAvatar(MultipartFile file, Long targetUserId);
 }

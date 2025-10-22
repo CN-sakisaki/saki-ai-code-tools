@@ -28,7 +28,10 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * 用户表 控制层。
@@ -54,8 +57,10 @@ public class UserController {
     @NoAuth
     @PostMapping("/login")
     @Operation(description = "用户登录")
-    public BaseResponse<UserVO> login(@RequestBody LoginRequest request, HttpServletRequest httpServletRequest) {
-        return ResultUtils.success(userService.login(request, httpServletRequest));
+    public BaseResponse<UserVO> login(@RequestBody LoginRequest request,
+                                      HttpServletRequest httpServletRequest,
+                                      HttpServletResponse httpServletResponse) {
+        return ResultUtils.success(userService.login(request, httpServletRequest, httpServletResponse));
     }
 
     @NoAuth
@@ -69,8 +74,9 @@ public class UserController {
     @NoAuth
     @PostMapping("/token/refresh")
     @Operation(description = "刷新 AccessToken")
-    public BaseResponse<String> refreshAccessToken(@RequestBody TokenRefreshRequest request) {
-        return ResultUtils.success(userService.refreshAccessToken(request));
+    public BaseResponse<String> refreshAccessToken(@RequestBody TokenRefreshRequest request,
+                                                   HttpServletResponse httpServletResponse) {
+        return ResultUtils.success(userService.refreshAccessToken(request, httpServletResponse));
     }
 
     /**
@@ -114,6 +120,17 @@ public class UserController {
     @Operation(description = "管理员更新用户信息")
     public BaseResponse<Boolean> updateUser(@RequestBody UserUpdateRequest request) {
         return ResultUtils.success(userService.updateUser(request));
+    }
+
+    /**
+     * 管理员上传或替换指定用户的头像。
+     */
+    @PostMapping(value = "/admin/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @AuthCheck(mustRole = UserRoleConstant.ADMIN_ROLE)
+    @Operation(description = "管理员上传用户头像")
+    public BaseResponse<String> uploadUserAvatarByAdmin(@RequestPart("file") MultipartFile file,
+                                                        @RequestParam("userId") Long userId) {
+        return ResultUtils.success(userService.uploadAvatar(file, userId));
     }
 
     /**
@@ -186,6 +203,15 @@ public class UserController {
     @PostMapping("/sendEmailCode")
     public BaseResponse<Boolean> sendEmailCode(@RequestBody UserEmailGetCodeRequest request) {
         return ResultUtils.success(userService.sendEmailCode(request));
+    }
+
+    /**
+     * 当前用户上传头像。
+     */
+    @PostMapping(value = "/avatar/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(description = "上传当前用户头像")
+    public BaseResponse<String> uploadCurrentUserAvatar(@RequestPart("file") MultipartFile file) {
+        return ResultUtils.success(userService.uploadAvatar(file, null));
     }
 
 }
