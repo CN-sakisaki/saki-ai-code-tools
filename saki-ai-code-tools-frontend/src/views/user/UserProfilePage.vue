@@ -202,7 +202,13 @@ const emailRules = {
         <a-col :xs="24" :lg="12">
           <a-space direction="vertical" size="large" style="width: 100%">
             <a-card title="更新手机号" class="user-profile__card">
-              <a-form ref="phoneFormRef" :model="phoneForm" :rules="phoneRules" label-col="{ span: 6 }" wrapper-col="{ span: 16 }">
+              <a-form
+                ref="phoneFormRef"
+                :model="phoneForm"
+                :rules="phoneRules"
+                :label-col="{ span: 6 }"
+                :wrapper-col="{ span: 16 }"
+              >
                 <a-form-item label="新手机号" name="newPhone">
                   <a-input v-model:value="phoneForm.newPhone" placeholder="请输入新手机号" />
                 </a-form-item>
@@ -219,7 +225,13 @@ const emailRules = {
             </a-card>
 
             <a-card title="更新邮箱" class="user-profile__card">
-              <a-form ref="emailFormRef" :model="emailForm" :rules="emailRules" label-col="{ span: 6 }" wrapper-col="{ span: 16 }">
+              <a-form
+                ref="emailFormRef"
+                :model="emailForm"
+                :rules="emailRules"
+                :label-col="{ span: 6 }"
+                :wrapper-col="{ span: 16 }"
+              >
                 <a-form-item label="新邮箱" name="newEmail">
                   <a-input v-model:value="emailForm.newEmail" placeholder="请输入新邮箱" />
                 </a-form-item>
