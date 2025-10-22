@@ -27,6 +27,8 @@ public class UserVO implements Serializable {
 
     private String userAccount;
 
+    private String userName;
+
     private String userEmail;
 
     private String userPhone;
