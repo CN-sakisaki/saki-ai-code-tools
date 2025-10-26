@@ -15,9 +15,6 @@ import org.springframework.web.context.request.RequestAttributes;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
-import jakarta.servlet.http.HttpServletRequest;
-import jakarta.servlet.http.HttpSession;
-
 /**
  * 权限拦截器
  * @author saki酱
@@ -26,7 +23,7 @@ import jakarta.servlet.http.HttpSession;
  */
 @Aspect
 @Component
-@Order(2)
+@Order(1)
 public class AuthInterceptor {
 
     /**
@@ -69,19 +66,8 @@ public class AuthInterceptor {
         if (!(requestAttributes instanceof ServletRequestAttributes attributes)) {
             return null;
         }
-        HttpServletRequest request = attributes.getRequest();
-        if (request == null) {
-            return null;
-        }
-        HttpSession session = request.getSession(false);
-        if (session == null) {
-            return null;
-        }
-        Object attribute = session.getAttribute(UserConstants.USER_LOGIN_STATE);
-        if (attribute instanceof User user) {
-            return user;
-        }
-        return null;
+        Object object = attributes.getRequest().getSession().getAttribute(UserConstants.USER_LOGIN_STATE);
+        return (User) object;
     }
 }
 
