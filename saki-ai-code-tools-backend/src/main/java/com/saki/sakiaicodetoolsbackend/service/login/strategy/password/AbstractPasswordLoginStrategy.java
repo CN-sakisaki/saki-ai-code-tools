@@ -1,4 +1,4 @@
-package com.saki.sakiaicodetoolsbackend.service.login.strategy;
+package com.saki.sakiaicodetoolsbackend.service.login.strategy.password;
 
 import cn.hutool.core.util.StrUtil;
 import cn.hutool.crypto.digest.DigestUtil;
@@ -8,6 +8,7 @@ import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
+import com.saki.sakiaicodetoolsbackend.service.login.strategy.AbstractBaseLoginStrategy;
 
 /**
  * 密码登录策略抽象基类。
