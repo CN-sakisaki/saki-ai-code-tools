@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>验证码通知</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Helvetica Neue", "Hiragino Sans GB", Arial, sans-serif;
+            background-color: #f9fafb;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            padding: 32px 40px;
+        }
+
+        .header {
+            text-align: center;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 12px;
+        }
+
+        .header h2 {
+            color: #2f54eb;
+            margin: 0;
+            font-size: 20px;
+        }
+
+        .content {
+            margin-top: 24px;
+            font-size: 15px;
+            color: #333;
+            line-height: 1.7;
+        }
+
+        .code-box {
+            text-align: center;
+            margin: 28px 0;
+        }
+
+        .code {
+            display: inline-block;
+            font-size: 28px;
+            font-weight: bold;
+            letter-spacing: 4px;
+            color: #2f54eb;
+            background: #f0f5ff;
+            padding: 12px 28px;
+            border-radius: 8px;
+        }
+
+        .footer {
+            margin-top: 36px;
+            font-size: 13px;
+            color: #888;
+            border-top: 1px solid #eee;
+            padding-top: 12px;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #2f54eb;
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h2>验证码通知</h2>
+    </div>
+    <div class="content">
+        <p>您好，您正在进行<strong>${action}</strong>操作，请在下方输入验证码：</p>
+        <div class="code-box">
+            <span class="code">${code}</span>
+        </div>
+        <p>此验证码有效期为 <strong>${expireMinutes}</strong> 分钟，请尽快使用。</p>
+        <p>若非本人操作，请忽略本邮件。</p>
+    </div>
+    <div class="footer">
+        <p>—— 来自 <a href="https://saki-ai.com">AI 代码生成工具系统</a></p>
+    </div>
+</div>
+</body>
+</html>
