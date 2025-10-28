@@ -14,6 +14,7 @@ export const useLoginUserStore = defineStore('loginUser', () => {
   }
 
   const setNotLogin = () => {
+    currentUser.value = null
     currentUser.value = {
       userRole: ACCESS_ENUM.NOT_LOGIN,
     } as API.UserVO

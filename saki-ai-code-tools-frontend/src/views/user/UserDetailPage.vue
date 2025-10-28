@@ -4,8 +4,8 @@ import { useRoute, useRouter } from 'vue-router'
 import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
-import { uploadFile } from '@/api/fileController'
 import { baseAdminGetUserById, updateUser } from '@/api/userController'
+import { upload } from '@/api/fileController.ts'
 
 const route = useRoute()
 const router = useRouter()
@@ -147,46 +147,62 @@ const handleSubmit = async () => {
   }
 }
 
-const handleAvatarChange: UploadProps['onChange'] = async (info) => {
-  const file = info.file.originFileObj as File | undefined
-  if (!file) return
+const handleAvatarUpload: UploadProps['onChange'] = async (info) => {
+  console.log('upload triggered:', info)
+
+  //  兼容 Ant Design Vue 不同版本
+  const file = (info.file.originFileObj ?? info.file) as File
+  if (!file) {
+    message.error('文件获取失败，请重试')
+    return
+  }
+
   if (!file.type.startsWith('image/')) {
     message.error('请选择图片文件')
     return
   }
+
   if (avatarUploading.value) return
-
-  const targetId = formState.id ?? userId.value
-  if (!targetId) {
-    message.error('未能识别用户ID，无法上传头像')
-    return
-  }
-
-  const formData = new FormData()
-  formData.append('file', file)
-
   avatarUploading.value = true
+
   try {
-    const { data } = await uploadFile(formData, { biz: 'user_avatar', userId: targetId })
-    if (data.code === 0 && data.data) {
-      formState.userAvatar = data.data
-      message.success('头像上传成功')
-    } else {
-      message.error(data.message ?? '头像上传失败')
+    const targetId = userId.value
+    if (!targetId) {
+      message.error('未识别用户ID，无法上传头像')
+      return
     }
-  } catch {
-    message.error('头像上传失败')
+
+    // 上传到 COS
+    const { data } = await upload({ biz: 'user_avatar', userId: Number(targetId) }, {}, file)
+    console.log('upload result:', data)
+
+    if (data.code !== 0 || !data.data) {
+      message.error(data.message ?? '头像上传失败')
+      return
+    }
+
+    //  兼容返回类型（string 或 FileUploadVO）
+    const avatarUrl = typeof data.data === 'string' ? data.data : data.data.url
+    message.success('头像上传成功')
+
+    // 更新用户头像
+    const { data: updateRes } = await updateUser({
+      id: targetId,
+      userAvatar: avatarUrl,
+    })
+
+    if (updateRes.code === 0) {
+      message.success('用户头像已更新')
+      await fetchDetail()
+    } else {
+      message.error(updateRes.message ?? '更新用户头像失败')
+    }
+  } catch (err) {
+    console.error(err)
+    message.error('上传或更新头像失败')
   } finally {
     avatarUploading.value = false
   }
-}
-
-const clearAvatar = () => {
-  if (avatarUploading.value) {
-    message.warning('头像上传中，请稍后再试')
-    return
-  }
-  formState.userAvatar = ''
 }
 
 onMounted(() => {
@@ -211,13 +227,26 @@ onMounted(() => {
 
     <a-spin :spinning="loading">
       <a-space direction="vertical" size="large" class="user-detail__content">
-        <a-card class="user-detail__card">
-          <template #title>基本信息</template>
-          <template #extra>
-            <a-avatar :size="64" :src="detail?.userAvatar">
+        <a-card title="用户头像" class="user-detail__card">
+          <div class="user-detail__avatar-upload">
+            <a-avatar :size="96" :src="detail?.userAvatar">
               <span v-if="!detail?.userAvatar">{{ avatarInitial }}</span>
             </a-avatar>
-          </template>
+            <div class="user-detail__avatar-actions">
+              <a-upload
+                accept="image/*"
+                :show-upload-list="false"
+                :before-upload="() => false"
+                :disabled="avatarUploading"
+                @change="handleAvatarUpload"
+              >
+                <a-button :loading="avatarUploading">上传新头像</a-button>
+              </a-upload>
+            </div>
+          </div>
+        </a-card>
+        <a-card class="user-detail__card">
+          <template #title>基本信息</template>
           <a-descriptions :column="1" bordered size="middle">
             <a-descriptions-item label="用户ID">{{ detail?.id ?? '—' }}</a-descriptions-item>
             <a-descriptions-item label="账号">{{ detail?.userAccount ?? '—' }}</a-descriptions-item>
@@ -295,34 +324,6 @@ onMounted(() => {
         </a-form-item>
         <a-form-item label="用户名称" name="userName">
           <a-input v-model:value="formState.userName" placeholder="请输入名称" />
-        </a-form-item>
-        <a-form-item label="用户头像">
-          <div class="user-detail__avatar-upload">
-            <a-avatar :size="96" :src="formState.userAvatar">
-              <span v-if="!formState.userAvatar">{{ avatarInitial }}</span>
-            </a-avatar>
-            <div class="user-detail__avatar-actions">
-              <a-upload
-                accept="image/*"
-                :show-upload-list="false"
-                :before-upload="() => false"
-                :disabled="avatarUploading"
-                @change="handleAvatarChange"
-              >
-                <a-button :loading="avatarUploading">上传头像</a-button>
-              </a-upload>
-              <a-input v-model:value="formState.userAvatar" placeholder="或粘贴头像图片地址" />
-              <a-button
-                v-if="formState.userAvatar"
-                type="link"
-                danger
-                :disabled="avatarUploading"
-                @click="clearAvatar"
-              >
-                移除头像
-              </a-button>
-            </div>
-          </div>
         </a-form-item>
         <a-form-item label="用户邮箱" name="userEmail">
           <a-input v-model:value="formState.userEmail" placeholder="请输入邮箱" />
@@ -410,5 +411,9 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+.user-detail__avatar-box {
+  display: flex;
+  align-items: center;
 }
 </style>

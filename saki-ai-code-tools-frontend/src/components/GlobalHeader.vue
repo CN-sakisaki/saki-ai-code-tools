@@ -61,7 +61,7 @@ const handleMenuClick = ({ key }: { key: string }) => {
   <a-layout-header class="global-header">
     <RouterLink class="global-header__brand" to="/">
       <img :src="logo" alt="SaKi酱AI代码生成工具 logo" class="global-header__logo" />
-      <span class="global-header__title">SaKi酱AI代码生成工具</span>
+      <span class="global-header__title">AI代码生成工具</span>
     </RouterLink>
 
     <a-menu
