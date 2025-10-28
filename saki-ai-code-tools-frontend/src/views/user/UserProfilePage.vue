@@ -5,7 +5,6 @@ import { useRouter } from 'vue-router'
 import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 
-import { uploadFile } from '@/api/fileController'
 import {
   baseAdminGetUserById,
   baseUserGetUserById,
@@ -199,7 +198,7 @@ onMounted(async () => {
   }
   syncFormIds()
   if (currentUser.value?.id) {
-    loadProfile()
+    await loadProfile()
   }
 })
 
@@ -296,7 +295,7 @@ const handleUpdatePhone = async () => {
     if (data.code === 0) {
       message.success('手机号更新成功')
       closePhoneModal()
-      loadProfile()
+      await loadProfile()
     } else {
       message.error(data.message ?? '手机号更新失败')
     }
@@ -320,7 +319,7 @@ const handleUpdateEmail = async () => {
     if (data.code === 0) {
       message.success('邮箱更新成功')
       closeEmailModal()
-      loadProfile()
+      await loadProfile()
     } else {
       message.error(data.message ?? '邮箱更新失败')
     }
@@ -347,40 +346,64 @@ const profileRules = {
   userName: [{ required: true, message: '请输入昵称' }],
 }
 
+import { upload } from '@/api/fileController'
+
 const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
-  const file = info.file.originFileObj as File | undefined
-  if (!file) return
+  console.log('upload triggered:', info)
+
+  // ✅ 兼容 Ant Design Vue 的 File 类型
+  const file = (info.file.originFileObj ?? info.file) as File
+  if (!file) {
+    message.error('文件获取失败，请重试')
+    return
+  }
+
   if (!file.type.startsWith('image/')) {
     message.error('请选择图片文件')
     return
   }
   if (profileAvatarUploading.value) return
 
-  const formData = new FormData()
-  formData.append('file', file)
-
   profileAvatarUploading.value = true
   try {
-    const { data } = await uploadFile(formData, { biz: 'user_avatar' })
-    if (data.code === 0 && data.data) {
-      profileForm.userAvatar = data.data
-      message.success('头像上传成功')
-    } else {
-      message.error(data.message ?? '头像上传失败')
+    const currentId = currentUser.value?.id
+    if (!currentId) {
+      message.error('未识别当前用户，无法上传头像')
+      return
     }
-  } catch {
-    message.error('头像上传失败')
+
+    // ✅ 上传文件到 COS
+    const { data } = await upload({ biz: 'user_avatar', userId: Number(currentId) }, {}, file)
+    console.log('upload result:', data)
+
+    if (data.code !== 0 || !data.data) {
+      message.error(data.message ?? '头像上传失败')
+      return
+    }
+
+    // ✅ 兼容返回类型（string 或 FileUploadVO）
+    const avatarUrl = typeof data.data === 'string' ? data.data : data.data.url
+    message.success('头像上传成功')
+
+    // ✅ 调用后端更新头像
+    const updateRes = await updateProfile({
+      id: currentId,
+      userAvatar: avatarUrl,
+    })
+
+    if (updateRes.data.code === 0) {
+      message.success('头像已更新')
+      await loginUserStore.fetchUser()
+      await loadProfile()
+    } else {
+      message.error(updateRes.data.message ?? '更新头像失败')
+    }
+  } catch (err) {
+    console.error(err)
+    message.error('上传或更新头像失败')
   } finally {
     profileAvatarUploading.value = false
   }
-}
-
-const clearProfileAvatar = () => {
-  if (profileAvatarUploading.value) {
-    message.warning('头像上传中，请稍后再试')
-    return
-  }
-  profileForm.userAvatar = ''
 }
 
 const handleUpdateProfile = async () => {
@@ -427,13 +450,26 @@ const handleUpdateProfile = async () => {
     </a-page-header>
     <a-spin :spinning="loading">
       <a-space direction="vertical" size="large" class="user-profile__content">
-        <a-card class="user-profile__card">
-          <template #title>基础信息</template>
-          <template #extra>
-            <a-avatar :size="64" :src="profile?.userAvatar">
+        <a-card title="我的头像" class="user-profile__card">
+          <div class="user-profile__avatar-upload">
+            <a-avatar :size="96" :src="profile?.userAvatar">
               <span v-if="!profile?.userAvatar">{{ avatarInitial }}</span>
             </a-avatar>
-          </template>
+            <div class="user-profile__avatar-actions">
+              <a-upload
+                accept="image/*"
+                :show-upload-list="false"
+                :before-upload="() => false"
+                :disabled="profileAvatarUploading"
+                @change="handleProfileAvatarChange"
+              >
+                <a-button :loading="profileAvatarUploading">更换头像</a-button>
+              </a-upload>
+            </div>
+          </div>
+        </a-card>
+        <a-card class="user-profile__card">
+          <template #title>基础信息</template>
           <a-descriptions :column="1" bordered size="middle">
             <a-descriptions-item label="账号">{{
               profile?.userAccount ?? '—'
@@ -518,34 +554,6 @@ const handleUpdateProfile = async () => {
       @cancel="closeEditModal"
     >
       <a-form ref="profileFormRef" :model="profileForm" :rules="profileRules" layout="vertical">
-        <a-form-item label="头像">
-          <div class="user-profile__avatar-upload">
-            <a-avatar :size="96" :src="profileForm.userAvatar">
-              <span v-if="!profileForm.userAvatar">{{ avatarInitial }}</span>
-            </a-avatar>
-            <div class="user-profile__avatar-actions">
-              <a-upload
-                accept="image/*"
-                :show-upload-list="false"
-                :before-upload="() => false"
-                :disabled="profileAvatarUploading"
-                @change="handleProfileAvatarChange"
-              >
-                <a-button :loading="profileAvatarUploading">上传头像</a-button>
-              </a-upload>
-              <a-input v-model:value="profileForm.userAvatar" placeholder="或粘贴头像图片地址" />
-              <a-button
-                v-if="profileForm.userAvatar"
-                type="link"
-                danger
-                :disabled="profileAvatarUploading"
-                @click="clearProfileAvatar"
-              >
-                移除头像
-              </a-button>
-            </div>
-          </div>
-        </a-form-item>
         <a-form-item label="昵称" name="userName">
           <a-input v-model:value="profileForm.userName" placeholder="请输入昵称" />
         </a-form-item>

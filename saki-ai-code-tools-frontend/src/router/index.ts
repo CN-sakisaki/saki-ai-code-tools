@@ -70,15 +70,6 @@ const router = createRouter({
       },
     },
     {
-      path: '/about',
-      name: 'about',
-      component: () => import('../views/AboutView.vue'),
-      meta: {
-        label: '关于我们',
-        showInMenu: true,
-      },
-    },
-    {
       path: '/no-auth',
       name: 'noAuth',
       component: NoAuth,
