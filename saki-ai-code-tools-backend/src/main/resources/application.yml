@@ -1,18 +1,71 @@
 spring:
   application:
     name: saki-ai-code-tools-backend
+
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/saki_ai_code_tools?useUnicode=true&characterEncoding=utf8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+    username: root
+    password: SaKi20251013
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      password: SaKi20251013
+
+  mail:
+    host: smtp.qq.com
+    username: 189444236@qq.com
+    password: sqxasegmupribiei
+    port: 465
+    properties:
+      mail:
+        smtp:
+          auth: true
+          ssl:
+            enable: true
+          socketFactory:
+            port: 465
+            class: javax.net.ssl.SSLSocketFactory
+    default-encoding: UTF-8
+    protocol: smtp
 server:
   port: 8123
   servlet:
     context-path: /api
+
+mybatis-flex:
+  configuration:
+    map-underscore-to-camel-case: true
+  global-config:
+    logic-delete-column: is_delete
+    deleted-value-of-logic-delete: 1
+    normal-value-of-logic-delete: 0
+
 # springdoc-openapi
 springdoc:
   group-configs:
     - group: 'default'
       packages-to-scan: com.saki.sakiaicodetoolsbackend.controller
+
 # knife4j
 knife4j:
   enable: true
   setting:
     language: zh_cn
+
+# 添加 COS 对象存储配置（需要从腾讯云获取）
+cos:
+  client:
+    host: https://saki-ai-code-tools-1323098272.cos.ap-guangzhou.myqcloud.com
+    secretId:
+    secretKey:
+    region: ap-guangzhou
+    bucket: saki-ai-code-tools-1323098272
+
+
+# 自定义配置，用于发送时动态取出发件人邮箱
+mail:
+  mailFrom: ${spring.mail.username}
 

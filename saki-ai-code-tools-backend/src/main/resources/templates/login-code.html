@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>登录验证码</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            background-color: #f7f7f7;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            max-width: 520px;
+            margin: 40px auto;
+            background: #ffffff;
+            border-radius: 8px;
+            padding: 32px;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .title {
+            font-size: 22px;
+            color: #111827;
+            margin-bottom: 16px;
+        }
+
+        .content {
+            font-size: 15px;
+            color: #374151;
+            line-height: 1.8;
+        }
+
+        .code {
+            display: inline-block;
+            font-size: 28px;
+            letter-spacing: 6px;
+            padding: 12px 24px;
+            margin: 24px 0;
+            border-radius: 6px;
+            background: linear-gradient(135deg, #6366f1, #818cf8);
+            color: #ffffff;
+            font-weight: 700;
+        }
+
+        .footer {
+            margin-top: 24px;
+            font-size: 12px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="title">您好！</div>
+    <div class="content">
+        您正在登录 Saki AI Code Tools，您的验证码为：
+        <div class="code">${code}</div>
+        该验证码有效期为 ${expireMinutes} 分钟，请勿泄露给他人。如果不是您本人操作，请忽略本邮件。
+    </div>
+    <div class="footer">
+        此邮件由系统自动发送，请勿直接回复。
+    </div>
+</div>
+</body>
+</html>
+
