@@ -43,6 +43,18 @@ public class RegisterRequest implements Serializable {
     private String confirmPassword;
 
     /**
+     * 用户邮箱
+     */
+    @Schema(description = "用户邮箱", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String userEmail;
+
+    /**
+     * 验证码
+     */
+    @Schema(description = "邮箱验证码", requiredMode = Schema.RequiredMode.REQUIRED)
+    private String code;
+
+    /**
      * 邀请码，可选字段。
      */
     @Schema(description = "邀请码", requiredMode = Schema.RequiredMode.NOT_REQUIRED)
