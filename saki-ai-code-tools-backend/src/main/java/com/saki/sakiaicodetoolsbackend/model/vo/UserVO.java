@@ -59,8 +59,6 @@ public class UserVO implements Serializable {
 
     private LocalDateTime updateTime;
 
-    private String accessToken;
-
     public void copyUserInfoFrom(User user) {
         BeanUtil.copyProperties(user, this, CopyOptions.create().ignoreNullValue());
     }

@@ -64,7 +64,7 @@ public class LoginStrategyFactory {
      */
     public LoginStrategy getStrategy(LoginTypeEnum loginTypeEnum) {
         LoginStrategy strategy = strategyMap.get(loginTypeEnum);
-        ThrowUtils.throwIf(strategy == null,ErrorCode.PARAMS_ERROR, "不支持的登录方式");
+        ThrowUtils.throwIf(strategy == null, ErrorCode.PARAMS_ERROR, "不支持的登录方式");
         return strategy;
     }
 }

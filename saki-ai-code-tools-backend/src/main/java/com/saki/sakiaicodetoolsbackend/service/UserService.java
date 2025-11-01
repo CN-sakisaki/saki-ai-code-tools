@@ -6,16 +6,16 @@ import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.common.SendCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.login.TokenRefreshRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 用户表 服务层。
@@ -33,27 +33,12 @@ public interface UserService extends IService<User> {
     UserVO login(LoginRequest request, HttpServletRequest httpServletRequest);
 
     /**
-     * 发送邮箱登录验证码。
-     *
-     * @param request 登录请求
-     */
-    void sendEmailLoginCode(LoginRequest request);
-
-    /**
-     * 刷新 AccessToken。
-     *
-     * @param request 刷新请求
-     * @return 新的 AccessToken
-     */
-    String refreshAccessToken(TokenRefreshRequest request);
-
-    /**
      * 用户注册。
      *
      * @param request 注册请求
      * @return 新用户的主键 ID
      */
-    Long register(RegisterRequest request);
+    Long register(RegisterRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 管理员新增用户。
@@ -61,7 +46,7 @@ public interface UserService extends IService<User> {
      * @param request 新增用户请求
      * @return 新增用户的主键 ID
      */
-    Long createUser(UserAddRequest request);
+    Long createUser(UserAddRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 管理员删除用户。
@@ -69,7 +54,7 @@ public interface UserService extends IService<User> {
      * @param request 删除请求
      * @return 删除是否成功
      */
-    Boolean deleteUsers(UserDeleteRequest request);
+    Boolean deleteUsers(UserDeleteRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 管理员更新用户信息。
@@ -77,7 +62,7 @@ public interface UserService extends IService<User> {
      * @param request 更新请求
      * @return 更新是否成功
      */
-    Boolean updateUser(UserUpdateRequest request);
+    Boolean updateUser(UserUpdateRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 分页查询用户列表。
@@ -85,7 +70,7 @@ public interface UserService extends IService<User> {
      * @param request 查询请求
      * @return 分页结果
      */
-    Page<User> listUsersByPage(UserQueryRequest request);
+    Page<User> listUsersByPage(UserQueryRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 根据主键获取用户详情。
@@ -93,7 +78,7 @@ public interface UserService extends IService<User> {
      * @param id 用户ID
      * @return 用户详情
      */
-    User getUserDetail(Long id);
+    User getUserDetail(Long id, HttpServletRequest httpServletRequest);
 
     /**
      * 根据主键获取用户详情。
@@ -101,7 +86,7 @@ public interface UserService extends IService<User> {
      * @param id 用户ID
      * @return 用户VO详情
      */
-    UserVO getUserVODetail(Long id);
+    UserVO getUserVODetail(Long id, HttpServletRequest httpServletRequest);
 
     /**
      * 更新当前用户的基础资料。
@@ -109,7 +94,7 @@ public interface UserService extends IService<User> {
      * @param request 更新请求
      * @return 是否更新成功
      */
-    Boolean updateCurrentUserProfile(UserProfileUpdateRequest request);
+    Boolean updateCurrentUserProfile(UserProfileUpdateRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 更新当前用户的邮箱。
@@ -117,7 +102,7 @@ public interface UserService extends IService<User> {
      * @param request 更新请求
      * @return 是否更新成功
      */
-    Boolean updateCurrentUserEmail(UserEmailUpdateRequest request);
+    Boolean updateCurrentUserEmail(UserEmailUpdateRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 更新当前用户的手机号。
@@ -125,13 +110,21 @@ public interface UserService extends IService<User> {
      * @param request 更新请求
      * @return 是否更新成功
      */
-    Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request);
+    Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request, HttpServletRequest httpServletRequest);
+
 
     /**
-     * 根据邮箱获取验证吗。
+     * 退出登录，清理 Session。
      *
-     * @param request 获取请求
-     * @return 是否获取成功
+     * @param httpServletRequest 当前请求
      */
-    Boolean sendEmailCode(UserEmailGetCodeRequest request);
+    void logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse);
+
+
+    /**
+     * 获取验证码
+     * @param request - 发送请求；
+     * @return 是否发送成功
+     */
+    Boolean sendCode(SendCodeRequest request, HttpServletRequest httpServletRequest);
 }

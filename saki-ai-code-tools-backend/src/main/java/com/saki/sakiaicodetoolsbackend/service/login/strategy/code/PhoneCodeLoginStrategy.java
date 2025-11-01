@@ -1,4 +1,4 @@
-package com.saki.sakiaicodetoolsbackend.service.login.strategy;
+package com.saki.sakiaicodetoolsbackend.service.login.strategy.code;
 
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;

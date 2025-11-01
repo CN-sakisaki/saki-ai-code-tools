@@ -1,4 +1,4 @@
-package com.saki.sakiaicodetoolsbackend.service.login.strategy;
+package com.saki.sakiaicodetoolsbackend.service.login.strategy.code;
 
 import cn.hutool.core.util.StrUtil;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
@@ -7,6 +7,7 @@ import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
+import com.saki.sakiaicodetoolsbackend.service.login.strategy.AbstractBaseLoginStrategy;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
 /**
@@ -104,4 +105,5 @@ public abstract class AbstractCodeLoginStrategy extends AbstractBaseLoginStrateg
      * @return 错误提示信息
      */
     protected abstract String userNotFoundMessage();
+
 }

@@ -9,6 +9,12 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponseFileUploadVO = {
+    code?: number
+    data?: FileUploadVO
+    message?: string
+  }
+
   type BaseResponseLong = {
     code?: number
     data?: number | string
@@ -41,6 +47,19 @@ declare namespace API {
 
   type baseUserGetUserByIdParams = {
     id: number | string
+  }
+
+  type FileUploadVO = {
+    /** 文件访问 URL */
+    url?: string
+    /** COS 对象键（路径） */
+    objectKey?: string
+    /** 原始文件名 */
+    originalName?: string
+    /** 文件大小（字节） */
+    fileSize?: number
+    /** 文件后缀名 */
+    extension?: string
   }
 
   type LoginRequest = {
@@ -78,9 +97,9 @@ declare namespace API {
     inviteCode?: string
   }
 
-  type TokenRefreshRequest = {
-    /** AccessToken */
-    accessToken?: string
+  type uploadParams = {
+    biz: string
+    userId?: number | string
   }
 
   type User = {
@@ -272,6 +291,5 @@ declare namespace API {
     editTime?: string
     createTime?: string
     updateTime?: string
-    accessToken?: string
   }
 }

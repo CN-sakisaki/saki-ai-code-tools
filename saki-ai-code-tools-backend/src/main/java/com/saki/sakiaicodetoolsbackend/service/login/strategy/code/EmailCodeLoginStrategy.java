@@ -1,9 +1,10 @@
-package com.saki.sakiaicodetoolsbackend.service.login.strategy;
+package com.saki.sakiaicodetoolsbackend.service.login.strategy.code;
 
 import com.saki.sakiaicodetoolsbackend.constant.AuthConstants;
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.enums.LoginTypeEnum;
+import com.saki.sakiaicodetoolsbackend.model.enums.VerificationSceneEnum;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Component;
 
@@ -32,7 +33,7 @@ public class EmailCodeLoginStrategy extends AbstractCodeLoginStrategy {
 
     @Override
     protected String buildRedisKey(String identifier) {
-        return AuthConstants.buildEmailCodeKey(identifier);
+        return AuthConstants.buildEmailCodeKey(VerificationSceneEnum.LOGIN, identifier);
     }
 
     @Override

@@ -20,9 +20,6 @@ public enum UserRoleEnum {
     USER("用户", "user"),
     ADMIN("管理员", "admin");
 
-    private final String text;
-    private final String value;
-
     /**
      * 角色值缓存映射
      * <p>
@@ -38,6 +35,9 @@ public enum UserRoleEnum {
             VALUE_MAP.put(role.getValue(), role);
         }
     }
+
+    private final String text;
+    private final String value;
 
     /**
      * 枚举构造函数

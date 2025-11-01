@@ -129,6 +129,14 @@ export async function sendEmailLoginCode(body: API.LoginRequest, options?: { [ke
   })
 }
 
+/** 退出登录 POST /user/logout */
+export async function logout(options?: { [key: string]: any }) {
+  return request<API.BaseResponseBoolean>('/user/logout', {
+    method: 'POST',
+    ...(options || {}),
+  })
+}
+
 /** 更新个人手机号 PUT /user/phone */
 export async function updatePhone(
   body: API.UserPhoneUpdateRequest,
@@ -177,21 +185,6 @@ export async function sendEmailCode(
   options?: { [key: string]: any },
 ) {
   return request<API.BaseResponseBoolean>('/user/sendEmailCode', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    data: body,
-    ...(options || {}),
-  })
-}
-
-/** 刷新 AccessToken POST /user/token/refresh */
-export async function refreshAccessToken(
-  body: API.TokenRefreshRequest,
-  options?: { [key: string]: any },
-) {
-  return request<API.BaseResponseString>('/user/token/refresh', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

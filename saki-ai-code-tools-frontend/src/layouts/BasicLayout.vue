@@ -50,7 +50,6 @@ const headerUser = computed(() => {
     currentUser.value.userAccount ||
     currentUser.value.userEmail ||
     currentUser.value.userPhone ||
-    currentUser.value.userProfile ||
     '用户'
 
   return {

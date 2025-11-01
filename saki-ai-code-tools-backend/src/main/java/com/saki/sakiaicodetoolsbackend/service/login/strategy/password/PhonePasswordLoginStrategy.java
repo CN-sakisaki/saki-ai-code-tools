@@ -1,4 +1,4 @@
-package com.saki.sakiaicodetoolsbackend.service.login.strategy;
+package com.saki.sakiaicodetoolsbackend.service.login.strategy.password;
 
 import com.saki.sakiaicodetoolsbackend.mapper.UserMapper;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
