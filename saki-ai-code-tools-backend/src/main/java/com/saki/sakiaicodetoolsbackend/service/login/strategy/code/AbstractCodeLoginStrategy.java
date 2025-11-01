@@ -105,4 +105,5 @@ public abstract class AbstractCodeLoginStrategy extends AbstractBaseLoginStrateg
      * @return 错误提示信息
      */
     protected abstract String userNotFoundMessage();
+
 }
