@@ -29,9 +29,6 @@ public enum VipStatusEnum {
      */
     VIP("VIP会员", 1);
 
-    private final String text;
-    private final Integer value;
-
     private static final Map<Integer, VipStatusEnum> VALUE_CACHE = new ConcurrentHashMap<>();
 
     static {
@@ -39,6 +36,9 @@ public enum VipStatusEnum {
             VALUE_CACHE.put(vipStatusEnum.getValue(), vipStatusEnum);
         }
     }
+
+    private final String text;
+    private final Integer value;
 
     VipStatusEnum(String text, Integer value) {
         this.text = text;

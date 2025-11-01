@@ -6,16 +6,16 @@ import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserUpdateRequest;
+import com.saki.sakiaicodetoolsbackend.model.dto.common.SendCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.LoginRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.login.RegisterRequest;
-import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailGetCodeRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserEmailUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserPhoneUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.user.UserProfileUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.User;
 import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.multipart.MultipartFile;
+import jakarta.servlet.http.HttpServletResponse;
 
 /**
  * 用户表 服务层。
@@ -31,13 +31,6 @@ public interface UserService extends IService<User> {
      * @return 用户信息
      */
     UserVO login(LoginRequest request, HttpServletRequest httpServletRequest);
-
-    /**
-     * 发送邮箱登录验证码。
-     *
-     * @param request 登录请求
-     */
-    void sendEmailLoginCode(LoginRequest request, HttpServletRequest httpServletRequest);
 
     /**
      * 用户注册。
@@ -119,27 +112,19 @@ public interface UserService extends IService<User> {
      */
     Boolean updateCurrentUserPhone(UserPhoneUpdateRequest request, HttpServletRequest httpServletRequest);
 
-    /**
-     * 根据邮箱获取验证吗。
-     *
-     * @param request 获取请求
-     * @return 是否获取成功
-     */
-    Boolean sendEmailCode(UserEmailGetCodeRequest request, HttpServletRequest httpServletRequest);
-
-    /**
-     * 上传用户头像并返回访问地址。
-     *
-     * @param file          待上传的头像文件
-     * @param targetUserId  目标用户ID，若为空则默认取当前登录用户
-     * @return 头像在对象存储中的访问地址
-     */
-    String uploadAvatar(MultipartFile file, Long targetUserId, HttpServletRequest httpServletRequest);
 
     /**
      * 退出登录，清理 Session。
      *
      * @param httpServletRequest 当前请求
      */
-    void logout(HttpServletRequest httpServletRequest);
+    void logout(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse);
+
+
+    /**
+     * 获取验证码
+     * @param request - 发送请求；
+     * @return 是否发送成功
+     */
+    Boolean sendCode(SendCodeRequest request, HttpServletRequest httpServletRequest);
 }
