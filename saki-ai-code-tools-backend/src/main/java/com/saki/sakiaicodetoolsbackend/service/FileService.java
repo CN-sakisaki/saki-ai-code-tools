@@ -1,5 +1,6 @@
 package com.saki.sakiaicodetoolsbackend.service;
 
+import com.saki.sakiaicodetoolsbackend.model.vo.FileUploadVO;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -17,5 +18,5 @@ public interface FileService {
      * @param httpServletRequest 当前请求
      * @return 文件访问地址
      */
-    String uploadFile(MultipartFile file, String biz, Long targetUserId, HttpServletRequest httpServletRequest);
+    FileUploadVO uploadFile(MultipartFile file, String biz, Long targetUserId, HttpServletRequest httpServletRequest);
 }
