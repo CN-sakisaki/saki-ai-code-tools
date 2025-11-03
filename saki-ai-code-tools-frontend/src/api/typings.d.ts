@@ -27,12 +27,6 @@ declare namespace API {
     message?: string
   }
 
-  type BaseResponseString = {
-    code?: number
-    data?: string
-    message?: string
-  }
-
   type BaseResponseUser = {
     code?: number
     data?: User
@@ -93,8 +87,21 @@ declare namespace API {
     userPassword: string
     /** 确认密码 */
     confirmPassword: string
+    /** 用户邮箱 */
+    userEmail: string
+    /** 邮箱验证码 */
+    code: string
     /** 邀请码 */
     inviteCode?: string
+  }
+
+  type SendCodeRequest = {
+    /** 邮箱或手机号 */
+    receiver?: string
+    /** 渠道类型 */
+    channel?: string
+    /** 业务场景 */
+    scene?: string
   }
 
   type uploadParams = {

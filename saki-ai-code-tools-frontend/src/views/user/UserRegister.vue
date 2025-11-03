@@ -1,11 +1,11 @@
 <script lang="ts" setup>
-import { reactive, ref } from 'vue'
+import { onBeforeUnmount, reactive, ref } from 'vue'
 import type { FormInstance } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
 import type { Rule } from 'ant-design-vue/es/form'
 import { useRouter } from 'vue-router'
 
-import { register } from '@/api/userController'
+import { register, sendEmailRegisterCode } from '@/api/userController'
 import backgroundVideo from '@/assets/background.mp4'
 import logo from '@/assets/logo.png'
 
@@ -18,7 +18,8 @@ const formState = reactive({
   userAccount: '',
   userPassword: '',
   confirmPassword: '',
-  inviteCode: '',
+  userEmail: '',
+  code: '',
 })
 
 type FormRulesMap = Record<string, Rule[]>
@@ -56,6 +57,59 @@ const rules: FormRulesMap = {
       trigger: 'blur',
     },
   ],
+  userEmail: [
+    { required: true, message: '请输入邮箱', trigger: 'blur' },
+    { type: 'email', message: '邮箱格式不正确', trigger: 'blur' },
+  ],
+  code: [
+    { required: true, message: '请输入验证码', trigger: 'blur' },
+    {
+      len: 6,
+      message: '验证码长度为 6 位',
+      trigger: 'blur',
+    },
+  ],
+}
+
+const emailCountdown = ref(0)
+let emailTimer: number | undefined
+
+const startCountdown = () => {
+  emailCountdown.value = 60
+  const timer = window.setInterval(() => {
+    emailCountdown.value -= 1
+    if (emailCountdown.value <= 0) {
+      window.clearInterval(timer)
+      emailCountdown.value = 0
+    }
+  }, 1000)
+
+  if (emailTimer) {
+    window.clearInterval(emailTimer)
+  }
+  emailTimer = timer
+}
+
+const sendEmailCode = async () => {
+  if (!formRef.value) {
+    return
+  }
+  try {
+    await formRef.value.validateFields(['userEmail'])
+    const { data } = await sendEmailRegisterCode(formState.userEmail)
+    if (data.code === 0) {
+      message.success('验证码发送成功，请注意查收邮箱')
+      startCountdown()
+    } else {
+      message.error(data.message ?? '验证码发送失败')
+    }
+  } catch (error: unknown) {
+    if (error && typeof error === 'object' && 'errorFields' in error) {
+      // 表单校验失败
+      return
+    }
+    message.error('验证码发送失败')
+  }
 }
 
 const handleSubmit = async () => {
@@ -64,7 +118,7 @@ const handleSubmit = async () => {
   }
   try {
     await formRef.value.validate()
-  } catch (error) {
+  } catch {
     return
   }
 
@@ -74,7 +128,8 @@ const handleSubmit = async () => {
       userAccount: formState.userAccount,
       userPassword: formState.userPassword,
       confirmPassword: formState.confirmPassword,
-      ...(formState.inviteCode ? { inviteCode: formState.inviteCode } : {}),
+      userEmail: formState.userEmail,
+      code: formState.code,
     }
     const { data } = await register(payload)
     if (data.code === 0) {
@@ -83,12 +138,18 @@ const handleSubmit = async () => {
     } else {
       message.error(data.message ?? '注册失败，请稍后重试')
     }
-  } catch (error) {
+  } catch {
     message.error('注册失败，请稍后重试')
   } finally {
     loading.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  if (emailTimer) {
+    window.clearInterval(emailTimer)
+  }
+})
 </script>
 
 <template>
@@ -166,23 +227,51 @@ const handleSubmit = async () => {
             </a-input-password>
           </a-form-item>
 
-          <a-form-item label="邀请码（可选）" name="inviteCode">
-            <a-input
-              v-model:value="formState.inviteCode"
-              placeholder="如有邀请码，请输入"
-              size="large"
-            >
+          <a-form-item label="邮箱" name="userEmail">
+            <a-input v-model:value="formState.userEmail" placeholder="请输入邮箱" size="large">
               <template #prefix>
                 <span aria-hidden="true" class="auth-input__icon">
                   <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                     <path
-                      d="M19 3h-3.18A3 3 0 0 0 9 4.35 3 3 0 0 0 3 7v13l7.5-3 7.5 3V9h1a2 2 0 0 0 0-4Zm-3 14.12-5.5-2.2-5.5 2.2V7a1 1 0 0 1 1-1h10a2.98 2.98 0 0 0 .5 1.65V17.12Zm3-10.12h-1V7a1 1 0 1 1 1 1Z"
+                      d="M4 6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2H4Zm8 6L4 8h16l-8 4Zm0 2 8-4.8V16H4v-6.8L12 14Z"
                       fill="currentColor"
                     />
                   </svg>
                 </span>
               </template>
             </a-input>
+          </a-form-item>
+
+          <a-form-item label="邮箱验证码" name="code">
+            <div class="auth-card__code-row">
+              <a-input
+                v-model:value="formState.code"
+                class="auth-card__code-input"
+                placeholder="请输入验证码"
+                size="large"
+              >
+                <template #prefix>
+                  <span aria-hidden="true" class="auth-input__icon">
+                    <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path
+                        d="M12 2 4 5v6c0 5.25 3.4 10.05 8 11 4.6-.95 8-5.75 8-11V5l-8-3Zm0 4.18 4 1.5V11c0 3.44-1.91 6.83-4 7.64-2.09-.81-4-4.2-4-7.64V7.68l4-1.5Zm-2 5.82 2 2 3-3-1.4-1.42-1.6 1.58-.6-.58L10 12Z"
+                        fill="currentColor"
+                      />
+                    </svg>
+                  </span>
+                </template>
+              </a-input>
+              <a-button
+                :disabled="emailCountdown > 0"
+                class="auth-card__code-button"
+                ghost
+                size="large"
+                type="primary"
+                @click="sendEmailCode"
+              >
+                {{ emailCountdown > 0 ? `${emailCountdown}s后重试` : '发送验证码' }}
+              </a-button>
+            </div>
           </a-form-item>
 
           <div class="auth-card__actions">
@@ -294,6 +383,21 @@ const handleSubmit = async () => {
   color: #ffffff;
 }
 
+.auth-card__code-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.auth-card__code-input {
+  flex: 1 1 auto;
+}
+
+.auth-card__code-button {
+  min-width: 138px;
+  border-radius: 10px;
+}
+
 .auth-input__icon {
   display: inline-flex;
   align-items: center;
@@ -342,6 +446,18 @@ const handleSubmit = async () => {
   color: rgba(255, 255, 255, 0.7);
 }
 
+:deep(.ant-btn-primary.auth-card__code-button) {
+  border-color: rgba(255, 255, 255, 0.75);
+  color: #ffffff;
+  box-shadow: 0 10px 25px rgba(118, 54, 255, 0.45);
+}
+
+:deep(.ant-btn-primary.auth-card__code-button[disabled]) {
+  border-color: rgba(255, 255, 255, 0.4);
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.65);
+}
+
 :deep(.ant-btn-primary) {
   box-shadow: 0 12px 30px rgba(135, 92, 255, 0.4);
 }
@@ -370,6 +486,15 @@ const handleSubmit = async () => {
   .auth-card__brand-logo {
     width: 100px;
     height: 100px;
+  }
+
+  .auth-card__code-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .auth-card__code-button {
+    width: 100%;
   }
 }
 </style>

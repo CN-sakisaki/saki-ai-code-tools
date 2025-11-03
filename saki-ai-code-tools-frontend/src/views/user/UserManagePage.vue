@@ -28,7 +28,6 @@ const queryForm = reactive<API.UserQueryRequest>({
   userAccount: undefined,
   userName: undefined,
   userEmail: undefined,
-  userPhone: undefined,
   userRole: undefined,
   userStatus: undefined,
   isVip: undefined,
@@ -41,7 +40,6 @@ const addForm = reactive<API.UserAddRequest & { userPassword?: string }>({
   userPassword: '',
   userName: '',
   userEmail: '',
-  userPhone: '',
   userRole: 'user',
   userStatus: 1,
   isVip: 0,
@@ -52,7 +50,6 @@ const resetAddForm = () => {
   addForm.userPassword = ''
   addForm.userName = ''
   addForm.userEmail = ''
-  addForm.userPhone = ''
   addForm.userRole = 'user'
   addForm.userStatus = 1
   addForm.isVip = 0
@@ -118,7 +115,6 @@ const handleReset = () => {
   queryForm.userAccount = undefined
   queryForm.userName = undefined
   queryForm.userEmail = undefined
-  queryForm.userPhone = undefined
   queryForm.userRole = undefined
   queryForm.userStatus = undefined
   queryForm.isVip = undefined
@@ -210,11 +206,13 @@ onMounted(() => {
         <a-form-item label="邮箱">
           <a-input v-model:value="queryForm.userEmail" allow-clear placeholder="请输入邮箱" />
         </a-form-item>
-        <a-form-item label="手机号">
-          <a-input v-model:value="queryForm.userPhone" allow-clear placeholder="请输入手机号" />
-        </a-form-item>
         <a-form-item label="角色">
-          <a-select v-model:value="queryForm.userRole" allow-clear placeholder="请选择角色" style="min-width: 120px">
+          <a-select
+            v-model:value="queryForm.userRole"
+            allow-clear
+            placeholder="请选择角色"
+            style="min-width: 120px"
+          >
             <a-select-option value="user">普通用户</a-select-option>
             <a-select-option value="admin">管理员</a-select-option>
           </a-select>
@@ -231,7 +229,12 @@ onMounted(() => {
           </a-select>
         </a-form-item>
         <a-form-item label="会员">
-          <a-select v-model:value="queryForm.isVip" allow-clear placeholder="是否会员" style="min-width: 120px">
+          <a-select
+            v-model:value="queryForm.isVip"
+            allow-clear
+            placeholder="是否会员"
+            style="min-width: 120px"
+          >
             <a-select-option :value="1">VIP</a-select-option>
             <a-select-option :value="0">普通</a-select-option>
           </a-select>
@@ -250,7 +253,11 @@ onMounted(() => {
       <a-table
         :data-source="tableData"
         :loading="loading"
-        :pagination="{ current: pagination.current, pageSize: pagination.pageSize, total: pagination.total }"
+        :pagination="{
+          current: pagination.current,
+          pageSize: pagination.pageSize,
+          total: pagination.total,
+        }"
         row-key="id"
         @change="handleTableChange"
       >
@@ -258,10 +265,11 @@ onMounted(() => {
         <a-table-column title="账号" dataIndex="userAccount" key="userAccount" />
         <a-table-column title="名称" dataIndex="userName" key="userName" />
         <a-table-column title="邮箱" dataIndex="userEmail" key="userEmail" />
-        <a-table-column title="手机号" dataIndex="userPhone" key="userPhone" />
         <a-table-column title="角色" dataIndex="userRole" key="userRole">
           <template #default="{ text }">
-            <a-tag :color="text === 'admin' ? 'magenta' : 'blue'">{{ text === 'admin' ? '管理员' : '用户' }}</a-tag>
+            <a-tag :color="text === 'admin' ? 'magenta' : 'blue'">{{
+              text === 'admin' ? '管理员' : '普通用户'
+            }}</a-tag>
           </template>
         </a-table-column>
         <a-table-column title="状态" dataIndex="userStatus" key="userStatus">
@@ -271,7 +279,9 @@ onMounted(() => {
         </a-table-column>
         <a-table-column title="会员" dataIndex="isVip" key="isVip">
           <template #default="{ text }">
-            <a-tag :color="text === 1 ? 'gold' : 'default'">{{ text === 1 ? 'VIP' : '普通' }}</a-tag>
+            <a-tag :color="text === 1 ? 'gold' : 'default'">{{
+              text === 1 ? 'VIP' : '普通会员'
+            }}</a-tag>
           </template>
         </a-table-column>
         <a-table-column title="最近登录" dataIndex="lastLoginTime" key="lastLoginTime">
@@ -317,9 +327,6 @@ onMounted(() => {
         </a-form-item>
         <a-form-item label="邮箱" name="userEmail">
           <a-input v-model:value="addForm.userEmail" placeholder="请输入邮箱" />
-        </a-form-item>
-        <a-form-item label="手机号" name="userPhone">
-          <a-input v-model:value="addForm.userPhone" placeholder="请输入手机号" />
         </a-form-item>
         <a-form-item label="角色" name="userRole">
           <a-select v-model:value="addForm.userRole" placeholder="请选择角色">
