@@ -237,6 +237,7 @@ public class UserController {
      * @return 发送是否成功
      */
     @PostMapping("/sendCode")
+    @Operation(description = "邮箱验证码发送")
     public BaseResponse<Boolean> sendCode(@RequestBody SendCodeRequest request,
                                           HttpServletRequest httpServletRequest) {
         return ResultUtils.success(userService.sendCode(request, httpServletRequest));
