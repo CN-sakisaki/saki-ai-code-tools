@@ -1,15 +1,12 @@
-// @ts-ignore
-/* eslint-disable */
-
 import request from '@/utils/request.ts'
 
 /** 通用文件上传接口 POST /file/upload */
 export async function upload(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
   params: API.uploadParams,
-  body: {},
+  body: Record<string, unknown>,
   file?: File,
-  options?: { [key: string]: any },
+  options?: { [key: string]: unknown },
 ) {
   const formData = new FormData()
 
@@ -18,7 +15,7 @@ export async function upload(
   }
 
   Object.keys(body).forEach((ele) => {
-    const item = (body as any)[ele]
+    const item = body[ele]
 
     if (item !== undefined && item !== null) {
       if (typeof item === 'object' && !(item instanceof File)) {
@@ -28,7 +25,7 @@ export async function upload(
           formData.append(ele, new Blob([JSON.stringify(item)], { type: 'application/json' }))
         }
       } else {
-        formData.append(ele, item)
+        formData.append(ele, item as string | Blob)
       }
     }
   })

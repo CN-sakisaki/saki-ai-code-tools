@@ -4,13 +4,13 @@ import { storeToRefs } from 'pinia'
 import { useRouter } from 'vue-router'
 import type { FormInstance, UploadProps } from 'ant-design-vue'
 import { message } from 'ant-design-vue'
+import { EditOutlined, CheckOutlined, CloseOutlined } from '@ant-design/icons-vue'
 
 import {
   baseAdminGetUserById,
   baseUserGetUserById,
-  sendEmailCode,
+  sendEmailUpdateCode,
   updateEmail,
-  updatePhone,
   updateProfile,
 } from '@/api/userController'
 import ACCESS_ENUM from '@/access/accessEnum'
@@ -24,29 +24,19 @@ const loading = ref(false)
 
 const profile = ref<(API.User & API.UserVO) | null>(null)
 
-const phoneModalVisible = ref(false)
 const emailModalVisible = ref(false)
-const editModalVisible = ref(false)
-const phoneCodeLoading = ref(false)
 const emailCodeLoading = ref(false)
-const phoneCountdown = ref(0)
 const emailCountdown = ref(0)
-const phoneFormRef = ref<FormInstance>()
 const emailFormRef = ref<FormInstance>()
-const profileFormRef = ref<FormInstance>()
-const updatingPhone = ref(false)
 const updatingEmail = ref(false)
 const updatingProfile = ref(false)
 const profileAvatarUploading = ref(false)
-let phoneTimer: ReturnType<typeof setInterval> | undefined
 let emailTimer: ReturnType<typeof setInterval> | undefined
 
-const phoneForm = reactive<API.UserPhoneUpdateRequest>({
-  id: undefined,
-  userPassword: '',
-  newPhone: '',
-  phoneCode: '',
-})
+// 内联编辑状态
+const editingField = ref<'userName' | 'userProfile' | null>(null)
+const editingUserName = ref('')
+const editingUserProfile = ref('')
 
 const emailForm = reactive<API.UserEmailUpdateRequest>({
   id: undefined,
@@ -55,55 +45,29 @@ const emailForm = reactive<API.UserEmailUpdateRequest>({
   emailCode: '',
 })
 
-const profileForm = reactive<API.UserProfileUpdateRequest>({
-  id: undefined,
-  userName: '',
-  userAvatar: '',
-  userProfile: '',
-})
-
 const normalizeId = (id?: string | number | null) => {
   if (id === undefined || id === null) return undefined
   return typeof id === 'string' ? id : id.toString()
 }
 
-const clearCountdown = (type: 'phone' | 'email') => {
-  if (type === 'phone') {
-    phoneCountdown.value = 0
-    if (phoneTimer) {
-      clearInterval(phoneTimer)
-      phoneTimer = undefined
-    }
-  } else {
-    emailCountdown.value = 0
-    if (emailTimer) {
-      clearInterval(emailTimer)
-      emailTimer = undefined
-    }
+const clearEmailCountdown = () => {
+  emailCountdown.value = 0
+  if (emailTimer) {
+    clearInterval(emailTimer)
+    emailTimer = undefined
   }
 }
 
-const startCountdown = (type: 'phone' | 'email') => {
-  clearCountdown(type)
-  if (type === 'phone') {
-    phoneCountdown.value = 60
-    phoneTimer = setInterval(() => {
-      if (phoneCountdown.value <= 1) {
-        clearCountdown('phone')
-      } else {
-        phoneCountdown.value -= 1
-      }
-    }, 1000)
-  } else {
-    emailCountdown.value = 60
-    emailTimer = setInterval(() => {
-      if (emailCountdown.value <= 1) {
-        clearCountdown('email')
-      } else {
-        emailCountdown.value -= 1
-      }
-    }, 1000)
-  }
+const startEmailCountdown = () => {
+  clearEmailCountdown()
+  emailCountdown.value = 60
+  emailTimer = setInterval(() => {
+    if (emailCountdown.value <= 1) {
+      clearEmailCountdown()
+    } else {
+      emailCountdown.value -= 1
+    }
+  }, 1000)
 }
 
 const formatDate = (value?: string) => {
@@ -156,30 +120,15 @@ const loadProfile = async () => {
   }
 }
 
-const resetPhoneForm = () => {
-  phoneForm.userPassword = ''
-  phoneForm.phoneCode = ''
-  phoneForm.newPhone = ''
-}
-
 const resetEmailForm = () => {
   emailForm.userPassword = ''
   emailForm.emailCode = ''
   emailForm.newEmail = ''
 }
 
-const resetProfileForm = () => {
-  profileForm.id = normalizeId(currentUser.value?.id)
-  profileForm.userName = profile.value?.userName ?? ''
-  profileForm.userAvatar = profile.value?.userAvatar ?? ''
-  profileForm.userProfile = profile.value?.userProfile ?? ''
-}
-
 const syncFormIds = () => {
   const id = normalizeId(currentUser.value?.id)
-  phoneForm.id = id
   emailForm.id = id
-  profileForm.id = id
 }
 
 watch(
@@ -203,24 +152,8 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
-  clearCountdown('phone')
-  clearCountdown('email')
+  clearEmailCountdown()
 })
-
-const openPhoneModal = () => {
-  syncFormIds()
-  phoneModalVisible.value = true
-  nextTick(() => {
-    phoneFormRef.value?.clearValidate?.()
-  })
-}
-
-const closePhoneModal = () => {
-  phoneModalVisible.value = false
-  phoneFormRef.value?.resetFields()
-  resetPhoneForm()
-  clearCountdown('phone')
-}
 
 const openEmailModal = () => {
   syncFormIds()
@@ -234,28 +167,65 @@ const closeEmailModal = () => {
   emailModalVisible.value = false
   emailFormRef.value?.resetFields()
   resetEmailForm()
-  clearCountdown('email')
+  clearEmailCountdown()
 }
 
-const openEditModal = () => {
+// 开始编辑字段
+const startEdit = (field: 'userName' | 'userProfile') => {
   if (!profile.value) return
-  resetProfileForm()
-  editModalVisible.value = true
-  nextTick(() => {
-    profileFormRef.value?.clearValidate?.()
-  })
+  editingField.value = field
+  if (field === 'userName') {
+    editingUserName.value = profile.value.userName ?? ''
+  } else {
+    editingUserProfile.value = profile.value.userProfile ?? ''
+  }
 }
 
-const closeEditModal = () => {
-  editModalVisible.value = false
+// 取消编辑
+const cancelEdit = () => {
+  editingField.value = null
+  editingUserName.value = ''
+  editingUserProfile.value = ''
 }
 
-const handleSendPhoneCode = () => {
-  if (!phoneForm.newPhone) {
-    message.warning('请先输入新手机号')
+// 保存编辑
+const saveEdit = async () => {
+  if (!editingField.value || !profile.value) return
+
+  const currentId = normalizeId(currentUser.value?.id)
+  if (!currentId) {
+    message.error('未识别当前用户')
     return
   }
-  message.warning('短信验证码服务暂未接入，请联系管理员')
+
+  // 验证昵称
+  if (editingField.value === 'userName' && !editingUserName.value.trim()) {
+    message.warning('昵称不能为空')
+    return
+  }
+
+  updatingProfile.value = true
+  try {
+    const payload: API.UserProfileUpdateRequest = {
+      id: currentId,
+      userName: editingField.value === 'userName' ? editingUserName.value : profile.value.userName,
+      userProfile:
+        editingField.value === 'userProfile' ? editingUserProfile.value : profile.value.userProfile,
+    }
+    const { data } = await updateProfile(payload)
+    if (data.code === 0) {
+      message.success('个人信息已更新')
+      cancelEdit()
+      await loginUserStore.fetchUser()
+      await loadProfile()
+    } else {
+      message.error(data.message ?? '更新个人信息失败')
+    }
+  } catch {
+    message.error('更新个人信息失败')
+  } finally {
+    updatingProfile.value = false
+  }
 }
 
 const handleSendEmailCode = async () => {
@@ -268,10 +238,10 @@ const handleSendEmailCode = async () => {
   }
   emailCodeLoading.value = true
   try {
-    const { data } = await sendEmailCode({ email: emailForm.newEmail })
+    const { data } = await sendEmailUpdateCode(emailForm.newEmail)
     if (data.code === 0) {
       message.success('验证码已发送，请检查邮箱')
-      startCountdown('email')
+      startEmailCountdown()
     } else {
       message.error(data.message ?? '验证码发送失败')
     }
@@ -279,30 +249,6 @@ const handleSendEmailCode = async () => {
     message.error('验证码发送失败')
   } finally {
     emailCodeLoading.value = false
-  }
-}
-
-const handleUpdatePhone = async () => {
-  try {
-    await phoneFormRef.value?.validate()
-  } catch {
-    return
-  }
-
-  updatingPhone.value = true
-  try {
-    const { data } = await updatePhone(phoneForm)
-    if (data.code === 0) {
-      message.success('手机号更新成功')
-      closePhoneModal()
-      await loadProfile()
-    } else {
-      message.error(data.message ?? '手机号更新失败')
-    }
-  } catch {
-    message.error('手机号更新失败')
-  } finally {
-    updatingPhone.value = false
   }
 }
 
@@ -330,20 +276,10 @@ const handleUpdateEmail = async () => {
   }
 }
 
-const phoneRules = {
-  newPhone: [{ required: true, message: '请输入新手机号' }],
-  phoneCode: [{ required: true, message: '请输入验证码' }],
-  userPassword: [{ required: true, message: '请输入密码' }],
-}
-
 const emailRules = {
   newEmail: [{ required: true, message: '请输入新邮箱' }],
   emailCode: [{ required: true, message: '请输入验证码' }],
   userPassword: [{ required: true, message: '请输入密码' }],
-}
-
-const profileRules = {
-  userName: [{ required: true, message: '请输入昵称' }],
 }
 
 import { upload } from '@/api/fileController'
@@ -351,7 +287,7 @@ import { upload } from '@/api/fileController'
 const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
   console.log('upload triggered:', info)
 
-  // ✅ 兼容 Ant Design Vue 的 File 类型
+  //  兼容 Ant Design Vue 的 File 类型
   const file = (info.file.originFileObj ?? info.file) as File
   if (!file) {
     message.error('文件获取失败，请重试')
@@ -372,7 +308,7 @@ const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
       return
     }
 
-    // ✅ 上传文件到 COS
+    // 上传文件到 COS
     const { data } = await upload({ biz: 'user_avatar', userId: Number(currentId) }, {}, file)
     console.log('upload result:', data)
 
@@ -381,11 +317,11 @@ const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
       return
     }
 
-    // ✅ 兼容返回类型（string 或 FileUploadVO）
+    //  兼容返回类型（string 或 FileUploadVO）
     const avatarUrl = typeof data.data === 'string' ? data.data : data.data.url
     message.success('头像上传成功')
 
-    // ✅ 调用后端更新头像
+    //  调用后端更新头像
     const updateRes = await updateProfile({
       id: currentId,
       userAvatar: avatarUrl,
@@ -405,35 +341,6 @@ const handleProfileAvatarChange: UploadProps['onChange'] = async (info) => {
     profileAvatarUploading.value = false
   }
 }
-
-const handleUpdateProfile = async () => {
-  try {
-    await profileFormRef.value?.validate()
-  } catch {
-    return
-  }
-
-  updatingProfile.value = true
-  try {
-    const payload: API.UserProfileUpdateRequest = {
-      ...profileForm,
-      id: profileForm.id ?? normalizeId(currentUser.value?.id),
-    }
-    const { data } = await updateProfile(payload)
-    if (data.code === 0) {
-      message.success('个人信息已更新')
-      closeEditModal()
-      await loginUserStore.fetchUser()
-      await loadProfile()
-    } else {
-      message.error(data.message ?? '更新个人信息失败')
-    }
-  } catch {
-    message.error('更新个人信息失败')
-  } finally {
-    updatingProfile.value = false
-  }
-}
 </script>
 
 <template>
@@ -443,168 +350,185 @@ const handleUpdateProfile = async () => {
       title="个人中心"
       sub-title="管理个人信息"
       @back="() => router.back()"
-    >
-      <template #extra>
-        <a-button type="primary" :disabled="!profile" @click="openEditModal">编辑信息</a-button>
-      </template>
-    </a-page-header>
+    />
     <a-spin :spinning="loading">
       <a-space direction="vertical" size="large" class="user-profile__content">
         <a-card title="我的头像" class="user-profile__card">
-          <div class="user-profile__avatar-upload">
-            <a-avatar :size="96" :src="profile?.userAvatar">
-              <span v-if="!profile?.userAvatar">{{ avatarInitial }}</span>
-            </a-avatar>
-            <div class="user-profile__avatar-actions">
-              <a-upload
-                accept="image/*"
-                :show-upload-list="false"
-                :before-upload="() => false"
-                :disabled="profileAvatarUploading"
-                @change="handleProfileAvatarChange"
-              >
-                <a-button :loading="profileAvatarUploading">更换头像</a-button>
-              </a-upload>
+          <div class="user-profile__avatar-section">
+            <div class="user-profile__avatar-wrapper">
+              <a-avatar :size="120" :src="profile?.userAvatar" class="user-profile__avatar">
+                <span v-if="!profile?.userAvatar" class="user-profile__avatar-text">{{
+                  avatarInitial
+                }}</span>
+              </a-avatar>
+              <div class="user-profile__avatar-upload-overlay">
+                <a-upload
+                  accept="image/*"
+                  :show-upload-list="false"
+                  :before-upload="() => false"
+                  :disabled="profileAvatarUploading"
+                  @change="handleProfileAvatarChange"
+                >
+                  <a-button type="primary" :loading="profileAvatarUploading" size="small">
+                    {{ profileAvatarUploading ? '上传中...' : '更换头像' }}
+                  </a-button>
+                </a-upload>
+              </div>
+            </div>
+            <div class="user-profile__avatar-info">
+              <div class="user-profile__avatar-name">{{ profile?.userName ?? '用户' }}</div>
+              <div class="user-profile__avatar-account">
+                账号：{{ profile?.userAccount ?? '—' }}
+              </div>
             </div>
           </div>
         </a-card>
         <a-card class="user-profile__card">
-          <template #title>基础信息</template>
-          <a-descriptions :column="1" bordered size="middle">
-            <a-descriptions-item label="账号">{{
-              profile?.userAccount ?? '—'
-            }}</a-descriptions-item>
-            <a-descriptions-item label="昵称">{{ profile?.userName ?? '—' }}</a-descriptions-item>
+          <template #title>
+            <span class="user-profile__card-title">
+              <span class="user-profile__card-icon">👤</span>
+              基础信息
+            </span>
+          </template>
+          <a-descriptions :column="1" bordered size="middle" class="user-profile__descriptions">
+            <a-descriptions-item label="昵称">
+              <div v-if="editingField !== 'userName'" class="user-profile__editable-field">
+                <span class="user-profile__info-value">{{ profile?.userName ?? '—' }}</span>
+                <EditOutlined class="user-profile__edit-icon" @click="startEdit('userName')" />
+              </div>
+              <div v-else class="user-profile__edit-input">
+                <a-input
+                  v-model:value="editingUserName"
+                  placeholder="请输入昵称"
+                  :maxlength="50"
+                  @press-enter="saveEdit"
+                />
+                <div class="user-profile__edit-actions">
+                  <CheckOutlined
+                    class="user-profile__action-icon save"
+                    :class="{ disabled: updatingProfile }"
+                    @click="saveEdit"
+                  />
+                  <CloseOutlined
+                    class="user-profile__action-icon cancel"
+                    :class="{ disabled: updatingProfile }"
+                    @click="cancelEdit"
+                  />
+                  <span v-if="updatingProfile" class="user-profile__saving-text">保存中...</span>
+                </div>
+              </div>
+            </a-descriptions-item>
             <a-descriptions-item label="角色">
-              <a-tag :color="profile?.userRole === 'admin' ? 'magenta' : 'blue'">
+              <a-tag
+                :color="profile?.userRole === 'admin' ? 'magenta' : 'blue'"
+                class="user-profile__tag"
+              >
                 {{ profile?.userRole === 'admin' ? '管理员' : '用户' }}
               </a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="状态">
-              <a-tag :color="profile?.userStatus === 1 ? 'green' : 'red'">
+              <a-tag :color="profile?.userStatus === 1 ? 'green' : 'red'" class="user-profile__tag">
                 {{ profile?.userStatus === 1 ? '正常' : '禁用' }}
               </a-tag>
             </a-descriptions-item>
             <a-descriptions-item label="会员状态">
-              <a-tag :color="isVip ? 'gold' : 'default'">{{
-                isVip ? 'VIP 会员' : '普通用户'
-              }}</a-tag>
+              <a-tag :color="isVip ? 'gold' : 'default'" class="user-profile__tag">
+                {{ isVip ? 'VIP 会员' : '普通用户' }}
+              </a-tag>
             </a-descriptions-item>
             <a-descriptions-item v-if="isVip" label="会员有效期">
-              {{ formatDate(profile?.vipStartTime) }} ~ {{ formatDate(profile?.vipEndTime) }}
+              <span class="user-profile__info-value">
+                {{ formatDate(profile?.vipStartTime) }} ~ {{ formatDate(profile?.vipEndTime) }}
+              </span>
             </a-descriptions-item>
-            <a-descriptions-item label="邀请码">{{
-              profile?.inviteCode ?? '—'
-            }}</a-descriptions-item>
+            <a-descriptions-item label="邀请码">
+              <span class="user-profile__info-value user-profile__invite-code">{{
+                profile?.inviteCode ?? '—'
+              }}</span>
+            </a-descriptions-item>
             <a-descriptions-item label="个人简介">
-              <span class="user-profile__bio">{{ profile?.userProfile || '—' }}</span>
+              <div v-if="editingField !== 'userProfile'" class="user-profile__editable-field">
+                <span class="user-profile__bio">{{ profile?.userProfile || '—' }}</span>
+                <EditOutlined class="user-profile__edit-icon" @click="startEdit('userProfile')" />
+              </div>
+              <div v-else class="user-profile__edit-input">
+                <a-textarea
+                  v-model:value="editingUserProfile"
+                  placeholder="请输入个人简介"
+                  :rows="4"
+                  :maxlength="500"
+                  show-count
+                />
+                <div class="user-profile__edit-actions">
+                  <CheckOutlined
+                    class="user-profile__action-icon save"
+                    :class="{ disabled: updatingProfile }"
+                    @click="saveEdit"
+                  />
+                  <CloseOutlined
+                    class="user-profile__action-icon cancel"
+                    :class="{ disabled: updatingProfile }"
+                    @click="cancelEdit"
+                  />
+                  <span v-if="updatingProfile" class="user-profile__saving-text">保存中...</span>
+                </div>
+              </div>
             </a-descriptions-item>
           </a-descriptions>
         </a-card>
 
-        <a-card title="账号安全" class="user-profile__card">
+        <a-card class="user-profile__card">
+          <template #title>
+            <span class="user-profile__card-title">
+              <span class="user-profile__card-icon">🔒</span>
+              账号安全
+            </span>
+          </template>
           <div class="user-profile__security-list">
             <div class="user-profile__security-item">
-              <div>
-                <div class="user-profile__security-title">绑定手机号</div>
-                <div class="user-profile__security-desc">{{ profile?.userPhone ?? '未绑定' }}</div>
+              <div class="user-profile__security-content">
+                <div class="user-profile__security-header">
+                  <span class="user-profile__security-icon">📧</span>
+                  <div class="user-profile__security-info">
+                    <div class="user-profile__security-title">绑定邮箱</div>
+                    <div class="user-profile__security-desc">
+                      {{ profile?.userEmail ?? '未绑定' }}
+                    </div>
+                  </div>
+                </div>
               </div>
-              <a-button type="default" @click="openPhoneModal">更改手机号</a-button>
-            </div>
-            <div class="user-profile__security-item">
-              <div>
-                <div class="user-profile__security-title">绑定邮箱</div>
-                <div class="user-profile__security-desc">{{ profile?.userEmail ?? '未绑定' }}</div>
-              </div>
-              <a-button type="default" @click="openEmailModal">更改邮箱</a-button>
+              <a-button type="primary" ghost @click="openEmailModal">更改邮箱</a-button>
             </div>
           </div>
           <a-typography-paragraph type="secondary" class="user-profile__security-tip">
-            更换手机号或邮箱时需要通过验证码验证身份，请确保可以正常接收验证码。
+            更换邮箱时需要通过验证码验证身份，请确保可以正常接收验证码。
           </a-typography-paragraph>
         </a-card>
 
-        <a-card title="登录与时间信息" class="user-profile__card">
-          <a-descriptions :column="1" size="middle">
-            <a-descriptions-item label="最近登录">{{
-              formatDate(profile?.lastLoginTime)
-            }}</a-descriptions-item>
-            <a-descriptions-item label="最近登录 IP">{{
-              profile?.lastLoginIp ?? '—'
-            }}</a-descriptions-item>
-            <a-descriptions-item label="最后编辑时间">{{
-              formatDate(profile?.editTime)
-            }}</a-descriptions-item>
-            <a-descriptions-item label="创建时间">{{
-              formatDate(profile?.createTime)
-            }}</a-descriptions-item>
+        <a-card class="user-profile__card">
+          <template #title>
+            <span class="user-profile__card-title">
+              <span class="user-profile__card-icon">📅</span>
+              登录与时间信息
+            </span>
+          </template>
+          <a-descriptions :column="1" size="middle" class="user-profile__descriptions">
+            <a-descriptions-item label="最近登录">
+              <span class="user-profile__info-value">{{ formatDate(profile?.lastLoginTime) }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="最近登录 IP">
+              <span class="user-profile__info-value">{{ profile?.lastLoginIp ?? '—' }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="最后编辑时间">
+              <span class="user-profile__info-value">{{ formatDate(profile?.editTime) }}</span>
+            </a-descriptions-item>
+            <a-descriptions-item label="创建时间">
+              <span class="user-profile__info-value">{{ formatDate(profile?.createTime) }}</span>
+            </a-descriptions-item>
           </a-descriptions>
         </a-card>
       </a-space>
     </a-spin>
-
-    <a-modal
-      v-model:open="editModalVisible"
-      title="编辑个人信息"
-      ok-text="保存"
-      cancel-text="取消"
-      :confirm-loading="updatingProfile"
-      destroy-on-close
-      @ok="handleUpdateProfile"
-      @cancel="closeEditModal"
-    >
-      <a-form ref="profileFormRef" :model="profileForm" :rules="profileRules" layout="vertical">
-        <a-form-item label="昵称" name="userName">
-          <a-input v-model:value="profileForm.userName" placeholder="请输入昵称" />
-        </a-form-item>
-        <a-form-item label="个人简介" name="userProfile">
-          <a-textarea
-            v-model:value="profileForm.userProfile"
-            :rows="4"
-            placeholder="请输入个人简介"
-          />
-        </a-form-item>
-      </a-form>
-    </a-modal>
-
-    <a-modal
-      v-model:open="phoneModalVisible"
-      title="更改手机号"
-      ok-text="确认更改"
-      cancel-text="取消"
-      :confirm-loading="updatingPhone"
-      destroy-on-close
-      @ok="handleUpdatePhone"
-      @cancel="closePhoneModal"
-    >
-      <a-form ref="phoneFormRef" :model="phoneForm" :rules="phoneRules" layout="vertical">
-        <a-form-item label="新手机号" name="newPhone">
-          <a-input v-model:value="phoneForm.newPhone" placeholder="请输入新手机号" />
-        </a-form-item>
-        <a-form-item label="验证码" name="phoneCode">
-          <a-row :gutter="8">
-            <a-col :span="16">
-              <a-input v-model:value="phoneForm.phoneCode" placeholder="请输入短信验证码" />
-            </a-col>
-            <a-col :span="8">
-              <a-button
-                block
-                type="primary"
-                ghost
-                :disabled="phoneCountdown > 0 || phoneCodeLoading"
-                :loading="phoneCodeLoading"
-                @click="handleSendPhoneCode"
-              >
-                {{ phoneCountdown > 0 ? `${phoneCountdown}s后重试` : '获取验证码' }}
-              </a-button>
-            </a-col>
-          </a-row>
-        </a-form-item>
-        <a-form-item label="密码" name="userPassword">
-          <a-input-password v-model:value="phoneForm.userPassword" placeholder="请输入密码" />
-        </a-form-item>
-      </a-form>
-    </a-modal>
 
     <a-modal
       v-model:open="emailModalVisible"
@@ -663,10 +587,90 @@ const handleUpdateProfile = async () => {
 
 .user-profile__card {
   background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  transition: box-shadow 0.3s;
+}
+
+.user-profile__card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+}
+
+.user-profile__card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.user-profile__card-icon {
+  font-size: 18px;
+}
+
+.user-profile__avatar-section {
+  display: flex;
+  gap: 24px;
+  align-items: center;
+  padding: 8px;
+}
+
+.user-profile__avatar-wrapper {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-profile__avatar {
+  border: 3px solid #f0f0f0;
+  transition: border-color 0.3s;
+}
+
+.user-profile__avatar-wrapper:hover .user-profile__avatar {
+  border-color: #1890ff;
+}
+
+.user-profile__avatar-text {
+  font-size: 48px;
+  font-weight: 600;
+  color: #1890ff;
+}
+
+.user-profile__avatar-upload-overlay {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.user-profile__avatar-wrapper:hover .user-profile__avatar-upload-overlay {
+  opacity: 1;
+}
+
+.user-profile__avatar-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.user-profile__avatar-name {
+  font-size: 20px;
+  font-weight: 600;
+  color: rgba(0, 0, 0, 0.85);
+}
+
+.user-profile__avatar-account {
+  font-size: 14px;
+  color: rgba(0, 0, 0, 0.65);
 }
 
 .user-profile__bio {
   white-space: pre-wrap;
+  color: rgba(0, 0, 0, 0.85);
+  line-height: 1.6;
 }
 
 .user-profile__security-list {
@@ -680,39 +684,156 @@ const handleUpdateProfile = async () => {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 16px;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
-  background: #fafafa;
+  padding: 20px;
+  border: 1px solid #e8e8e8;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #fafafa 0%, #ffffff 100%);
+  transition: all 0.3s;
+}
+
+.user-profile__security-item:hover {
+  border-color: #1890ff;
+  box-shadow: 0 2px 8px rgba(24, 144, 255, 0.1);
+  transform: translateY(-2px);
+}
+
+.user-profile__security-content {
+  flex: 1;
+}
+
+.user-profile__security-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-profile__security-icon {
+  font-size: 24px;
+}
+
+.user-profile__security-info {
+  flex: 1;
 }
 
 .user-profile__security-title {
   font-weight: 600;
+  font-size: 16px;
   margin-bottom: 4px;
+  color: rgba(0, 0, 0, 0.85);
 }
 
 .user-profile__security-desc {
+  font-size: 14px;
   color: rgba(0, 0, 0, 0.65);
 }
 
 .user-profile__security-tip {
   margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
 }
 
 :deep(.ant-descriptions-item-label) {
-  width: 120px;
+  width: 140px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.85);
 }
 
-.user-profile__avatar-upload {
+.user-profile__descriptions {
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.user-profile__info-value {
+  color: rgba(0, 0, 0, 0.85);
+  font-weight: 500;
+}
+
+.user-profile__invite-code {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  background: #f5f5f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.user-profile__tag {
+  font-weight: 500;
+  padding: 2px 12px;
+  border-radius: 12px;
+}
+
+.user-profile__editable-field {
   display: flex;
-  gap: 16px;
   align-items: center;
+  gap: 8px;
+  width: 100%;
 }
 
-.user-profile__avatar-actions {
-  flex: 1;
+.user-profile__edit-icon {
+  color: rgba(0, 0, 0, 0.45);
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.3s;
+  opacity: 0;
+}
+
+.user-profile__editable-field:hover .user-profile__edit-icon {
+  opacity: 1;
+}
+
+.user-profile__edit-icon:hover {
+  color: #1890ff;
+}
+
+.user-profile__edit-input {
   display: flex;
   flex-direction: column;
   gap: 8px;
+  width: 100%;
+}
+
+.user-profile__edit-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.user-profile__action-icon {
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  transition: all 0.3s;
+}
+
+.user-profile__action-icon.save {
+  color: #52c41a;
+}
+
+.user-profile__action-icon.save:hover {
+  background-color: #f6ffed;
+  color: #389e0d;
+}
+
+.user-profile__action-icon.cancel {
+  color: rgba(0, 0, 0, 0.45);
+}
+
+.user-profile__action-icon.cancel:hover {
+  background-color: #fff1f0;
+  color: #ff4d4f;
+}
+
+.user-profile__action-icon.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.user-profile__saving-text {
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.45);
+  margin-left: 8px;
 }
 </style>
