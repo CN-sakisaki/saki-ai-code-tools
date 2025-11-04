@@ -48,6 +48,33 @@ create index idx_user_role
 create index idx_user_status
     on user (user_status);
 
+drop table if exists app;
 
+create table app
+(
+    id            bigint auto_increment comment '主键'
+        primary key,
+    app_name      varchar(256)                       null comment '应用名称',
+    cover         varchar(512)                       null comment '应用封面',
+    init_prompt   text                               null comment '应用初始化的 prompt',
+    code_gen_type varchar(64)                        null comment '代码生成类型（枚举）',
+    deploy_key    varchar(64)                        null comment '部署标识',
+    deployed_time datetime                           null comment '部署时间',
+    priority      int      default 0                 not null comment '优先级',
+    user_id       bigint                             not null comment '创建用户 ID',
+    edit_time     datetime default CURRENT_TIMESTAMP not null comment '编辑时间',
+    create_time   datetime default CURRENT_TIMESTAMP not null comment '创建时间',
+    update_time   datetime default CURRENT_TIMESTAMP not null on update CURRENT_TIMESTAMP comment '更新时间',
+    is_delete     tinyint  default 0                 not null comment '逻辑删除（0 - 未删除，1 - 删除）',
+    constraint uk_deploy_key
+        unique (deploy_key)
+)
+    comment '应用' collate = utf8mb4_unicode_ci;
+
+create index idx_app_name
+    on app (app_name);
+
+create index idx_user_id
+    on app (user_id);
 
 

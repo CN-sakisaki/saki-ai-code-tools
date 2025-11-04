@@ -21,7 +21,7 @@ public class MyBatisCodeGenerator {
     private static final String SCHEMA_NAMES = "saki_ai_code_tools";
 
     // 需要生成的表名
-    private static final String[] TABLE_NAMES = {"user"};
+    private static final String[] TABLE_NAMES = {"app"};
 
     public static void main(String[] args) {
         // 获取数据源信息
