@@ -8,17 +8,32 @@ import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
 
 /**
  * 多文件代码保存器
+ * 负责保存HTML、CSS、JavaScript多文件代码
+ * 继承模板方法模式，实现具体的多文件保存逻辑
+ *
  * @author saki酱
  * @version 1.0
  * @since 2025-11-03
  */
 public class MultiFileCodeFileSaverTemplate extends CodeFileSaverTemplate<MultiFileCodeResult> {
 
+    /**
+     * 获取代码类型
+     *
+     * @return MULTI_FILE 枚举值
+     */
     @Override
     public CodeGenTypeEnum getCodeType() {
         return CodeGenTypeEnum.MULTI_FILE;
     }
 
+    /**
+     * 保存多文件代码的具体实现
+     * 分别保存HTML、CSS、JS文件到指定目录
+     *
+     * @param result      多文件代码结果对象
+     * @param baseDirPath 基础目录路径
+     */
     @Override
     protected void saveFiles(MultiFileCodeResult result, String baseDirPath) {
         // 保存 HTML 文件
@@ -29,6 +44,13 @@ public class MultiFileCodeFileSaverTemplate extends CodeFileSaverTemplate<MultiF
         writeToFile(baseDirPath, "script.js", result.getJsCode());
     }
 
+    /**
+     * 验证多文件代码输入参数
+     * 至少需要HTML代码，CSS和JS可以为空
+     *
+     * @param result 多文件代码结果对象
+     * @throws BusinessException 当HTML代码为空时抛出
+     */
     @Override
     protected void validateInput(MultiFileCodeResult result) {
         super.validateInput(result);
