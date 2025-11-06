@@ -4,11 +4,8 @@ import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.annotation.AuthCheck;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
-import com.saki.sakiaicodetoolsbackend.constant.UserConstants;
 import com.saki.sakiaicodetoolsbackend.constant.UserRoleConstant;
 import com.saki.sakiaicodetoolsbackend.exception.BusinessException;
-import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
-import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserAddRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserDeleteRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.admin.user.UserQueryRequest;
@@ -85,12 +82,7 @@ public class UserController {
     @GetMapping("/get/info")
     @Operation(description = "获取当前登录用户")
     public BaseResponse<UserVO> getUserInfo(HttpServletRequest httpServletRequest) {
-        Object userObj = httpServletRequest.getSession().getAttribute(UserConstants.USER_LOGIN_STATE);
-        User currentUser = (User) userObj;
-        ThrowUtils.throwIf(currentUser == null || currentUser.getId() == null, ErrorCode.NOT_LOGIN_ERROR, "未登录或会话已失效");
-        UserVO vo = new UserVO();
-        vo.copyUserInfoFrom(currentUser);
-        return ResultUtils.success(vo);
+        return ResultUtils.success(userService.getCurrentUserInfo(httpServletRequest));
     }
 
     /**

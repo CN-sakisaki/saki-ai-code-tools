@@ -127,4 +127,11 @@ public interface UserService extends IService<User> {
      * @return 是否发送成功
      */
     Boolean sendCode(SendCodeRequest request, HttpServletRequest httpServletRequest);
+
+    /**
+     * 获取当前登录用户
+     * @param httpServletRequest HTTP请求对象
+     * @return 脱敏后到用户信息
+     */
+    UserVO getCurrentUserInfo(HttpServletRequest httpServletRequest);
 }
