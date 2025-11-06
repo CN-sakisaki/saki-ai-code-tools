@@ -33,4 +33,20 @@ public final class AppConstants {
      * 次级排序字段，更新时间倒序。
      */
     public static final String SECONDARY_SORT_COLUMN = "update_time";
+
+    /**
+     * 应用生成目录
+     */
+    public static final String CODE_OUTPUT_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_output";
+
+    /**
+     * 应用部署目录
+     */
+    public static final String CODE_DEPLOY_ROOT_DIR = System.getProperty("user.dir") + "/tmp/code_deploy";
+
+    /**
+     * 应用部署域名
+     */
+    public static final String CODE_DEPLOY_HOST = "http://localhost";
+
 }
