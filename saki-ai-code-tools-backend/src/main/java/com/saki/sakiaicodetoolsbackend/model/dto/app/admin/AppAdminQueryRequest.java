@@ -47,7 +47,5 @@ public class AppAdminQueryRequest extends PageRequest implements Serializable {
     @Schema(description = "创建用户 ID")
     private Long userId;
 
-    @Schema(description = "是否删除标识（0-正常，1-删除）")
-    private Integer isDelete;
 }
 

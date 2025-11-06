@@ -1,6 +1,7 @@
 package com.saki.sakiaicodetoolsbackend.model.vo;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.saki.sakiaicodetoolsbackend.model.entity.App;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
@@ -59,12 +60,17 @@ public class AppVO implements Serializable {
     private LocalDateTime updateTime;
 
     /**
+     * 创建用户信息
+     */
+    private UserVO userVO;
+
+    /**
      * 将实体对象转换为视图对象。
      *
      * @param app 实体对象
      * @return 视图对象
      */
-    public static AppVO fromEntity(com.saki.sakiaicodetoolsbackend.model.entity.App app) {
+    public static AppVO fromEntity(App app) {
         if (app == null) {
             return null;
         }

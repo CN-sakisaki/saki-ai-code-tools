@@ -11,7 +11,9 @@ import com.saki.sakiaicodetoolsbackend.model.dto.app.user.AppMyListQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.app.user.AppUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.App;
 import com.saki.sakiaicodetoolsbackend.model.vo.AppVO;
+import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import reactor.core.publisher.Flux;
 
 /**
  * 应用 服务层，负责处理应用模块的业务逻辑。
@@ -107,5 +109,9 @@ public interface AppService extends IService<App> {
      * @return 应用详情
      */
     App getAdminAppDetail(Long id);
+
+    Flux<String> chatToGenCode(Long appId, String message, UserVO currentUser);
+
+    String deployApp(Long appId, UserVO loginUser);
 }
 

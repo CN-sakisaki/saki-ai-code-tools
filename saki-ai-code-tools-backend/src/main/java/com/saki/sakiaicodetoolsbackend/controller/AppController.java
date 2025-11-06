@@ -1,10 +1,14 @@
 package com.saki.sakiaicodetoolsbackend.controller;
 
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import com.mybatisflex.core.paginate.Page;
 import com.saki.sakiaicodetoolsbackend.annotation.AuthCheck;
 import com.saki.sakiaicodetoolsbackend.common.BaseResponse;
 import com.saki.sakiaicodetoolsbackend.common.ResultUtils;
 import com.saki.sakiaicodetoolsbackend.constant.UserRoleConstant;
+import com.saki.sakiaicodetoolsbackend.exception.ErrorCode;
+import com.saki.sakiaicodetoolsbackend.exception.ThrowUtils;
 import com.saki.sakiaicodetoolsbackend.model.dto.app.admin.AppAdminDeleteRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.app.admin.AppAdminQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.app.admin.AppAdminUpdateRequest;
@@ -14,12 +18,20 @@ import com.saki.sakiaicodetoolsbackend.model.dto.app.user.AppMyListQueryRequest;
 import com.saki.sakiaicodetoolsbackend.model.dto.app.user.AppUpdateRequest;
 import com.saki.sakiaicodetoolsbackend.model.entity.App;
 import com.saki.sakiaicodetoolsbackend.model.vo.AppVO;
+import com.saki.sakiaicodetoolsbackend.model.vo.UserVO;
 import com.saki.sakiaicodetoolsbackend.service.AppService;
+import com.saki.sakiaicodetoolsbackend.service.UserService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
 import org.springframework.web.bind.annotation.*;
+import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
+
+import java.util.Map;
 
 /**
  * 应用模块接口。
@@ -36,6 +48,7 @@ import org.springframework.web.bind.annotation.*;
 public class AppController {
 
     private final AppService appService;
+    private final UserService userService;
 
     /**
      * 用户创建应用。
@@ -178,6 +191,43 @@ public class AppController {
     @Operation(summary = "管理员查看应用详情", description = "管理员根据 ID 查看应用详情")
     public BaseResponse<App> adminGetAppDetail(@PathVariable Long id) {
         return ResultUtils.success(appService.getAdminAppDetail(id));
+    }
+
+    /**
+     * 应用聊天生成代码（流式 SSE）
+     *
+     * @param appId   应用 ID
+     * @param message 用户消息
+     * @param request 请求对象
+     * @return 生成结果流
+     */
+    @GetMapping(value = "/chat/gen/code", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<ServerSentEvent<Object>> chatToGenCode(@RequestParam Long appId,
+                                                       @RequestParam String message,
+                                                       HttpServletRequest request) {
+        // 参数校验
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID无效");
+        ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "用户消息不能为空");
+        // 获取当前登录用户
+        UserVO currentUser = userService.getCurrentUserInfo(request);
+        // 调用服务生成代码（流式）
+        // return appService.chatToGenCode(appId, message, currentUser);
+        Flux<String> contentFlux = appService.chatToGenCode(appId, message, currentUser);
+        return contentFlux
+                .map(chunk -> {
+                    Map<String, String> wrapper = Map.of("d", chunk);
+                    String jsonData = JSONUtil.toJsonStr((wrapper));
+                    return ServerSentEvent
+                            .builder()
+                            .data(jsonData)
+                            .build();
+                })
+                .concatWith(Mono.just(
+                        ServerSentEvent
+                                .builder()
+                                .event("done")
+                                .data("")
+                                .build()));
     }
 }
 
