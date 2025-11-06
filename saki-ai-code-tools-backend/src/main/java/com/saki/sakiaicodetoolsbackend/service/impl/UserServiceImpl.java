@@ -598,6 +598,19 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         return Boolean.TRUE;
     }
 
+    /**
+     * 获取当前登录用户
+     * @param httpServletRequest HTTP请求对象
+     * @return 脱敏后到用户信息
+     */
+    @Override
+    public UserVO getCurrentUserInfo(HttpServletRequest httpServletRequest) {
+        User user = getSessionUserOrThrow(httpServletRequest);
+        UserVO vo = new UserVO();
+        vo.copyUserInfoFrom(user);
+        return vo;
+    }
+
     // ===================== 私有辅助方法 =====================
 
     /**
