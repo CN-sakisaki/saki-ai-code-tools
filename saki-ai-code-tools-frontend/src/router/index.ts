@@ -8,6 +8,9 @@ import UserRegister from '@/views/user/UserRegister.vue'
 import UserManagePage from '@/views/user/UserManagePage.vue'
 import UserDetailPage from '@/views/user/UserDetailPage.vue'
 import UserProfilePage from '@/views/user/UserProfilePage.vue'
+import AppChatPage from '@/views/app/AppChatPage.vue'
+import AppManagePage from '@/views/app/AppManagePage.vue'
+import AppEditPage from '@/views/app/AppEditPage.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -65,6 +68,36 @@ const router = createRouter({
       component: UserProfilePage,
       meta: {
         label: '个人中心',
+        hideInMenu: true,
+        access: ACCESS_ENUM.USER,
+      },
+    },
+    {
+      path: '/app/manage',
+      name: '应用管理',
+      component: AppManagePage,
+      meta: {
+        label: '应用管理',
+        showInMenu: true,
+        access: ACCESS_ENUM.ADMIN,
+      },
+    },
+    {
+      path: '/app/:id/chat',
+      name: 'appChat',
+      component: AppChatPage,
+      meta: {
+        label: '应用对话',
+        hideInMenu: true,
+        access: ACCESS_ENUM.USER,
+      },
+    },
+    {
+      path: '/app/:id/edit',
+      name: 'appEdit',
+      component: AppEditPage,
+      meta: {
+        label: '编辑应用',
         hideInMenu: true,
         access: ACCESS_ENUM.USER,
       },
